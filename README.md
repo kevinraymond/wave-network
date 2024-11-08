@@ -93,7 +93,7 @@ Resource Usage: {'parameters': 109493006, 'memory_peak': 4170.3798828125}
 
 ### IMDB
 
-_Still requires tuning - memory usage is much higher! This is using the last updated [train.py](train.py) script._
+_Still requires tuning - memory usage is much higher! This is using the last updated [train.py](train.py) script. Clarification: I have only been running the Wave tests, not re-running BERT; this only shows the last Wave update, so I will update them all at some point to be on the same page._
 
 **Latest Run:**
 
