@@ -10,23 +10,36 @@ Making some improvements along the way. Hopefully this leads somewhere amazing -
 
 ## WIP Updates
 
-2024-11-08: I'm updating some of the implementation based on closer review of the wave network implementation.
+2024-11-08: Update Wave Network implementation with some additional focus on the signal parts. Tried to keep the comments in there clear. Last update for tonight (2 AM local) - more tomorrow.
 
 ## Results
 
-These tests are all run locally on a single Nvidia 4090. Here are the results of the first runs of each dataset.
+These tests are all run locally on a single Nvidia 4090. Here are the latest/best results of everything.
 
 ### AG News
 
+**Best Run:**
+
 | Metric    | Wave Network | BERT base |
 | --------- | ------------ | --------- |
-| Accuracy  | 91.64%       | 94.53%    |
-| Precision | 91.63%       | 94.58%    |
-| Recall    | 91.64%       | 94.53%    |
-| F1 Score  | 91.64%       | 94.53%    |
-| Loss      | 0.2495       | 0.1778    |
+| Accuracy  | 92.03%       | 94.63%    |
+| Precision | 92.04%       | 94.66%    |
+| Recall    | 92.03%       | 94.63%    |
+| F1 Score  | 92.03%       | 94.63%    |
+| Loss      | 0.2378       | 0.2022    |
 
-I asked Claude to compare the results of this one against the paper:
+```bash
+Final Test Results:
+Wave Network (batch_size=64):
+Performance Metrics: {'loss': 0.23779155445449493, 'accuracy': 0.9202631578947369, 'precision': np.float64(0.9204283202989598), 'recall': np.float64(0.9202631578947369), 'f1': np.float64(0.9202632926679699)}
+Resource Usage: {'parameters': 24626692, 'memory_peak': 1165.90478515625}
+
+BERT (batch_size=32):
+Performance Metrics: {'loss': 0.20216417188576163, 'accuracy': 0.9463157894736842, 'precision': np.float64(0.9466198771601457), 'recall': np.float64(0.9463157894736842), 'f1': np.float64(0.9463277574455472)}
+Resource Usage: {'parameters': 109485316, 'memory_peak': 4170.14404296875}
+```
+
+I asked Claude to compare the results of the **first run** I did with AG News against the paper:
 
 > Key observations:
 > \
@@ -39,6 +52,10 @@ I asked Claude to compare the results of this one against the paper:
 
 ### DBpedia14
 
+_Update pending a new run with latest Wave Network changes._
+
+**Best Run:**
+
 | Metric    | Wave Network | BERT base |
 | --------- | ------------ | --------- |
 | Accuracy  | 98.34%       | 99.30%    |
@@ -47,9 +64,27 @@ I asked Claude to compare the results of this one against the paper:
 | F1 Score  | 98.34%       | 99.30%    |
 | Loss      | 0.0596       | 0.0370    |
 
+```bash
+# PENDING
+```
+
 ### IMDB
 
-IT'S RUNNING ...
+_Update pending a new run with latest Wave Network changes. Something else happening here - just breaking 81% so far._
+
+** Best Run:**
+
+| Metric    | Wave Network | BERT base |
+| --------- | ------------ | --------- |
+| Accuracy  | 00.00%       | 00.00%    |
+| Precision | 00.00%       | 00.00%    |
+| Recall    | 00.00%       | 00.00%    |
+| F1 Score  | 00.00%       | 00.00%    |
+| Loss      | 0.0000       | 0.0000    |
+
+```bash
+# PENDING
+```
 
 ## Usage
 
