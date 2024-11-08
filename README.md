@@ -8,6 +8,10 @@ Someone smarter than me can check [wave_network.py](wave_network.py) to make sur
 
 Making some improvements along the way. Hopefully this leads somewhere amazing - enjoy!
 
+## WIP Updates
+
+2024-11-08: I'm updating some of the implementation based on closer review of the wave network implementation.
+
 ## Results
 
 These tests are all run locally on a single Nvidia 4090. Here are the results of the first runs of each dataset.
