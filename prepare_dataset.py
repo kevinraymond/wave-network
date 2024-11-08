@@ -55,7 +55,7 @@ def prepare_text_classification_data(
     label_column: str = "label",
     tokenizer_name: str = "bert-base-uncased",
     max_length: int = 128,
-    val_size: float = 0.1,
+    val_size: float = 0.2,
     batch_size: int = 64,
     random_state: int = 42,
     num_workers: int = 2,
@@ -83,6 +83,9 @@ def prepare_text_classification_data(
     # Load the data
     train_df = pd.read_parquet(train_path)
     test_df = pd.read_parquet(test_path)
+    
+    # Add split size logging
+    total_train_size = len(train_df)
 
     # Validate column names
     required_columns = [text_column, label_column]
@@ -150,6 +153,17 @@ def prepare_text_classification_data(
     test_loader = DataLoader(
         test_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers
     )
+    
+    # Add detailed split reporting
+    train_size = len(train_texts)
+    val_size_actual = len(val_texts)
+    test_size = len(test_df)
+    
+    print("\nDataset Split Details:")
+    print(f"Total training data: {total_train_size}")
+    print(f"Training set: {train_size} ({train_size/total_train_size:.1%})")
+    print(f"Validation set: {val_size_actual} ({val_size_actual/total_train_size:.1%})")
+    print(f"Test set: {test_size}")
 
     return {
         "train_loader": train_loader,
@@ -159,6 +173,14 @@ def prepare_text_classification_data(
         "tokenizer": tokenizer,
         "num_classes": len(np.unique(train_labels)),
         "label_mapping": label_mapping,
+        # Add split information to return value
+        "split_info": {
+            "train_size": train_size,
+            "val_size": val_size_actual,
+            "test_size": test_size,
+            "train_ratio": train_size/total_train_size,
+            "val_ratio": val_size_actual/total_train_size
+        }
     }
 
 
