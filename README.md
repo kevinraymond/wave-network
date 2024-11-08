@@ -18,7 +18,7 @@ These tests are all run locally on a single Nvidia 4090. Here are the latest/bes
 
 ### AG News
 
-**Best Run:**
+**Latest Run:**
 
 | Metric    | Wave Network | BERT base |
 | --------- | ------------ | --------- |
@@ -39,6 +39,10 @@ Performance Metrics: {'loss': 0.20216417188576163, 'accuracy': 0.946315789473684
 Resource Usage: {'parameters': 109485316, 'memory_peak': 4170.14404296875}
 ```
 
+**Best Run:**
+
+SAME AS LATEST
+
 I asked Claude to compare the results of the **first run** I did with AG News against the paper:
 
 > Key observations:
@@ -52,7 +56,26 @@ I asked Claude to compare the results of the **first run** I did with AG News ag
 
 ### DBpedia14
 
-_Update pending a new run with latest Wave Network changes._
+**Latest Run:**
+
+| Metric    | Wave Network | BERT base |
+| --------- | ------------ | --------- |
+| Accuracy  | 98.15%       | 99.26%    |
+| Precision | 98.16%       | 99.26%    |
+| Recall    | 98.15%       | 99.26%    |
+| F1 Score  | 98.15%       | 99.26%    |
+| Loss      | 0.0630       | 0.0454    |
+
+```bash
+Final Test Results:
+Wave Network (batch_size=64):
+Performance Metrics: {'loss': 0.06299331468511946, 'accuracy': 0.9815, 'precision': np.float64(0.9815559797368222), 'recall': np.float64(0.9815), 'f1': np.float64(0.9815079453378028)}
+Resource Usage: {'parameters': 24634382, 'memory_peak': 1166.0244140625}
+
+BERT (batch_size=32):
+Performance Metrics: {'loss': 0.045359594953326574, 'accuracy': 0.9925714285714285, 'precision': np.float64(0.9925737777449415), 'recall': np.float64(0.9925714285714285), 'f1': np.float64(0.9925717929489069)}
+Resource Usage: {'parameters': 109493006, 'memory_peak': 4170.3798828125}
+```
 
 **Best Run:**
 
@@ -65,7 +88,7 @@ _Update pending a new run with latest Wave Network changes._
 | Loss      | 0.0596       | 0.0370    |
 
 ```bash
-# PENDING
+# don't have the console output; started keeping it after this best run
 ```
 
 ### IMDB
