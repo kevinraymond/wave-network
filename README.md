@@ -93,21 +93,34 @@ Resource Usage: {'parameters': 109493006, 'memory_peak': 4170.3798828125}
 
 ### IMDB
 
-_Update pending a new run with latest Wave Network changes. Something else happening here - just breaking 81% so far._
+*This is the only one drastically different than the paper reports, though I suspect it's something due to the longer IMDB sequences. We'll see!*
 
-** Best Run:**
+**Latest Run:**
 
 | Metric    | Wave Network | BERT base |
 | --------- | ------------ | --------- |
-| Accuracy  | 00.00%       | 00.00%    |
-| Precision | 00.00%       | 00.00%    |
-| Recall    | 00.00%       | 00.00%    |
-| F1 Score  | 00.00%       | 00.00%    |
-| Loss      | 0.0000       | 0.0000    |
+| Accuracy  | 79.80%       | 88.75%    |
+| Precision | 79.83%       | 88.75%    |
+| Recall    | 79.80%       | 88.75%    |
+| F1 Score  | 79.79%       | 88.75%    |
+| Loss      | 0.4754       | 0.3605    |
 
 ```bash
-# PENDING
+Final Test Results:
+Wave Network (batch_size=64):
+Performance Metrics: {'loss': 0.4753914927430165, 'accuracy': 0.79796, 'precision': np.float64(0.7983483798964435), 'recall': np.float64(0.79796), 'f1': np.float64(0.7978942263736618)}
+Resource Usage: {'parameters': 24625154, 'memory_peak': 1165.880859375}
+
+BERT (batch_size=32):
+Performance Metrics: {'loss': 0.3605447440810711, 'accuracy': 0.88748, 'precision': np.float64(0.8875063107484847), 'recall': np.float64(0.88748), 'f1': np.float64(0.887478090008091)}
+Resource Usage: {'parameters': 109483778, 'memory_peak': 4170.09716796875}
 ```
+
+**Best Run:**
+
+*The best was ~81.92% so far, but I wasn't saving results at the time.*
+
+SAME AS LATEST
 
 ## Usage
 
