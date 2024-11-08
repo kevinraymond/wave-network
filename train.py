@@ -12,7 +12,6 @@ from tqdm import tqdm
 from transformers import BertForSequenceClassification, get_linear_schedule_with_warmup
 from prepare_dataset import prepare_text_classification_data
 from wave_network import WaveNetwork
-from memory_efficient_wave_network import MemoryEfficientWaveNetwork
 
 # Configuration settings
 MODEL_CONFIGS = {
@@ -21,7 +20,7 @@ MODEL_CONFIGS = {
         "learning_rate": 1e-3,
         "batch_size": 64,
         "model_params": {
-            "embedding_dim": 768, 
+            "embedding_dim": 768,
         },
     },
     "bert": {
@@ -38,8 +37,8 @@ BASE_CONFIG = {
     "project_name": "wave-network-vs-bert",
     # "weight_decay": 1e-3, # orig
     "weight_decay": 1e-5,
-    "num_epochs": 4, # orig
-    "warmup_steps": 100, # orig
+    "num_epochs": 4,  # orig
+    "warmup_steps": 100,  # orig
     # "max_grad_norm": 1.0, # orig
     "max_grad_norm": 5.0,
     # "max_length": 64, # orig
