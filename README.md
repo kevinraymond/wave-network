@@ -6,7 +6,7 @@ Not going to give tons of step-by-step; if you're here looking, you probably hav
 
 Someone smarter than me can check [wave_network.py](wave_network.py) to make sure it's sound.
 
-Hopefully this leads somewhere amazing - enjoy!
+Making some improvements along the way. Hopefully this leads somewhere amazing - enjoy!
 
 ## Results
 
@@ -35,7 +35,13 @@ I asked Claude to compare the results of this one against the paper:
 
 ### DBpedia14
 
-IT'S RUNNING ...
+| Metric    | Wave Network | BERT base |
+| --------- | ------------ | --------- |
+| Accuracy  | 98.34%       | 99.30%    |
+| Precision | 98.34%       | 99.30%    |
+| Recall    | 98.34%       | 99.30%    |
+| F1 Score  | 98.34%       | 99.30%    |
+| Loss      | 0.0596       | 0.0370    |
 
 ### IMDB
 
