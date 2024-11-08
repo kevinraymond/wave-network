@@ -236,86 +236,146 @@ def main():
     from prepare_dataset import prepare_text_classification_data
     from wave_network import WaveNetwork
 
-    # Configuration
-    config = {
-        "project_name": "wave-network-vs-bert",
-        "learning_rate": 1e-3,
+    # Base configuration
+    base_config = {
+        "project_name": "wave-network-vs-bert-dbpedia",
         "weight_decay": 0.01,
         "num_epochs": 4,
         "warmup_steps": 100,
         "max_grad_norm": 1.0,
-        "batch_size": 64,
         "max_length": 128,
     }
 
-    # prepare data
-    data = prepare_text_classification_data(
+    # Prepare data with two different batch sizes
+    data_wave = prepare_text_classification_data(
         train_path="hf/dbpedia_14/dbpedia_14/train-00000-of-00001.parquet",
         test_path="hf/dbpedia_14/dbpedia_14/test-00000-of-00001.parquet",
-        batch_size=config["batch_size"],
-        max_length=config["max_length"],
+        batch_size=64,  # Wave Network batch size
+        max_length=base_config["max_length"],
         text_column="content",
     )
 
-    wandb.init(project=config["project_name"])
-    results = {}
+    data_bert = prepare_text_classification_data(
+        train_path="hf/dbpedia_14/dbpedia_14/train-00000-of-00001.parquet",
+        test_path="hf/dbpedia_14/dbpedia_14/test-00000-of-00001.parquet",
+        batch_size=32,  # BERT batch size
+        max_length=base_config["max_length"],
+        text_column="content",
+    )
+
+    results = {
+        "wave_network": {"metrics": None, "resources": None},
+        "bert": {"metrics": None, "resources": None},
+    }
+
+    # Initialize wandb run for the experiment group
+    wandb.init(project=base_config["project_name"])
 
     try:
         # Train Wave Network
-        config["run_name"] = "wave_network"
-        wave_model = WaveNetwork(
-            vocab_size=data["vocab_size"],
-            embedding_dim=768,
-            num_classes=data["num_classes"],
+        wave_config = base_config.copy()
+        wave_config.update(
+            {
+                "run_name": "wave_network",
+                "learning_rate": 1e-3,  # Wave Network learning rate
+                "batch_size": 64,
+            }
         )
-        wave_trainer = Trainer(wave_model, data, config)
-        results["wave_network"] = wave_trainer.train()
-        wandb.finish()  # Finish the Wave Network run
+
+        wave_model = WaveNetwork(
+            vocab_size=data_wave["vocab_size"],
+            embedding_dim=768,
+            num_classes=data_wave["num_classes"],
+        )
+        wave_trainer = Trainer(wave_model, data_wave, wave_config)
+        wave_metrics = wave_trainer.train()
+        results["wave_network"]["metrics"] = wave_metrics
+        results["wave_network"]["resources"] = {
+            "parameters": sum(p.numel() for p in wave_model.parameters()),
+            "memory_peak": (
+                torch.cuda.max_memory_allocated() / 1024 / 1024
+                if torch.cuda.is_available()
+                else 0
+            ),
+        }
+        wandb.finish()
+        torch.cuda.reset_peak_memory_stats()  # Reset memory stats between runs
 
         # Train BERT baseline
-        config["run_name"] = "bert_baseline"
-        config["learning_rate"] = 2e-5  # BERT typically needs lower learning rate
-        bert_model = BertForSequenceClassification.from_pretrained(
-            "bert-base-uncased", num_labels=data["num_classes"]
+        bert_config = base_config.copy()
+        bert_config.update(
+            {
+                "run_name": "bert_baseline",
+                "learning_rate": 2e-5,  # BERT learning rate
+                "batch_size": 32,
+            }
         )
-        bert_trainer = Trainer(bert_model, data, config)
-        results["bert"] = bert_trainer.train()
-        wandb.finish()  # Finish the BERT run
+
+        bert_model = BertForSequenceClassification.from_pretrained(
+            "bert-base-uncased", num_labels=data_bert["num_classes"]
+        )
+        bert_trainer = Trainer(bert_model, data_bert, bert_config)
+        bert_metrics = bert_trainer.train()
+        results["bert"]["metrics"] = bert_metrics
+        results["bert"]["resources"] = {
+            "parameters": sum(p.numel() for p in bert_model.parameters()),
+            "memory_peak": (
+                torch.cuda.max_memory_allocated() / 1024 / 1024
+                if torch.cuda.is_available()
+                else 0
+            ),
+        }
+        wandb.finish()
 
         # Log comparison metrics
         wandb.init(
-            project=config["project_name"], name="model_comparison", job_type="analysis"
+            project=base_config["project_name"],
+            name="model_comparison",
+            job_type="analysis",
         )
 
         # Create comparison table
         comparison_table = wandb.Table(columns=["Metric", "Wave Network", "BERT"])
 
+        # Performance metrics
         metrics = ["accuracy", "precision", "recall", "f1", "loss"]
         for metric in metrics:
             comparison_table.add_data(
-                metric, results["wave_network"][metric], results["bert"][metric]
+                metric,
+                results["wave_network"]["metrics"][metric],
+                results["bert"]["metrics"][metric],
             )
+
+        # Resource metrics
+        comparison_table.add_data(
+            "Parameters",
+            results["wave_network"]["resources"]["parameters"],
+            results["bert"]["resources"]["parameters"],
+        )
+        comparison_table.add_data(
+            "Peak Memory (MB)",
+            results["wave_network"]["resources"]["memory_peak"],
+            results["bert"]["resources"]["memory_peak"],
+        )
 
         wandb.log(
             {
                 "model_comparison": comparison_table,
-                "parameter_count": {
-                    "wave_network": sum(p.numel() for p in wave_model.parameters()),
-                    "bert": sum(p.numel() for p in bert_model.parameters()),
-                },
-                "memory_usage": {
-                    "wave_network": results["wave_network"]["memory_used"],
-                    "bert": results["bert"]["memory_used"],
+                "config_comparison": {
+                    "wave_network": wave_config,
+                    "bert": bert_config,
                 },
             }
         )
 
         # Print comparison
         print("\nFinal Test Results:")
-        print("Wave Network:")
-        print(results["wave_network"])
-        print("\nBERT:")
-        print(results["bert"])
+        print("Wave Network (batch_size=64):")
+        print(f"Performance Metrics:", results["wave_network"]["metrics"])
+        print(f"Resource Usage:", results["wave_network"]["resources"])
+        print("\nBERT (batch_size=32):")
+        print(f"Performance Metrics:", results["bert"]["metrics"])
+        print(f"Resource Usage:", results["bert"]["resources"])
 
     finally:
         wandb.finish()

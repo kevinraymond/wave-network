@@ -238,7 +238,7 @@ def main():
 
     # Base configuration
     base_config = {
-        "project_name": "wave-network-vs-bert",
+        "project_name": "wave-network-vs-bert-imdb",
         "weight_decay": 0.01,
         "num_epochs": 4,
         "warmup_steps": 100,
@@ -262,23 +262,24 @@ def main():
     )
 
     results = {
-        'wave_network': {'metrics': None, 'resources': None},
-        'bert': {'metrics': None, 'resources': None}
+        "wave_network": {"metrics": None, "resources": None},
+        "bert": {"metrics": None, "resources": None},
     }
 
     # Initialize wandb run for the experiment group
-    wandb.init(project=config["project_name"])
-
+    wandb.init(project=base_config["project_name"])
 
     try:
         # Train Wave Network
         wave_config = base_config.copy()
-        wave_config.update({
-            "run_name": "wave_network",
-            "learning_rate": 1e-3,  # Wave Network learning rate
-            "batch_size": 64,
-        })
-        
+        wave_config.update(
+            {
+                "run_name": "wave_network",
+                "learning_rate": 1e-3,  # Wave Network learning rate
+                "batch_size": 64,
+            }
+        )
+
         wave_model = WaveNetwork(
             vocab_size=data_wave["vocab_size"],
             embedding_dim=768,
@@ -286,31 +287,41 @@ def main():
         )
         wave_trainer = Trainer(wave_model, data_wave, wave_config)
         wave_metrics = wave_trainer.train()
-        results['wave_network']['metrics'] = wave_metrics
-        results['wave_network']['resources'] = {
-            'parameters': sum(p.numel() for p in wave_model.parameters()),
-            'memory_peak': torch.cuda.max_memory_allocated() / 1024 / 1024 if torch.cuda.is_available() else 0,
+        results["wave_network"]["metrics"] = wave_metrics
+        results["wave_network"]["resources"] = {
+            "parameters": sum(p.numel() for p in wave_model.parameters()),
+            "memory_peak": (
+                torch.cuda.max_memory_allocated() / 1024 / 1024
+                if torch.cuda.is_available()
+                else 0
+            ),
         }
         wandb.finish()
         torch.cuda.reset_peak_memory_stats()  # Reset memory stats between runs
 
         # Train BERT baseline
         bert_config = base_config.copy()
-        bert_config.update({
-            "run_name": "bert_baseline",
-            "learning_rate": 2e-5,  # BERT learning rate
-            "batch_size": 32,
-        })
-        
+        bert_config.update(
+            {
+                "run_name": "bert_baseline",
+                "learning_rate": 2e-5,  # BERT learning rate
+                "batch_size": 32,
+            }
+        )
+
         bert_model = BertForSequenceClassification.from_pretrained(
             "bert-base-uncased", num_labels=data_bert["num_classes"]
         )
         bert_trainer = Trainer(bert_model, data_bert, bert_config)
         bert_metrics = bert_trainer.train()
-        results['bert']['metrics'] = bert_metrics
-        results['bert']['resources'] = {
-            'parameters': sum(p.numel() for p in bert_model.parameters()),
-            'memory_peak': torch.cuda.max_memory_allocated() / 1024 / 1024 if torch.cuda.is_available() else 0,
+        results["bert"]["metrics"] = bert_metrics
+        results["bert"]["resources"] = {
+            "parameters": sum(p.numel() for p in bert_model.parameters()),
+            "memory_peak": (
+                torch.cuda.max_memory_allocated() / 1024 / 1024
+                if torch.cuda.is_available()
+                else 0
+            ),
         }
         wandb.finish()
 
@@ -318,50 +329,51 @@ def main():
         wandb.init(
             project=base_config["project_name"],
             name="model_comparison",
-            job_type="analysis"
+            job_type="analysis",
         )
-        
+
         # Create comparison table
-        comparison_table = wandb.Table(
-            columns=["Metric", "Wave Network", "BERT"])
-        
+        comparison_table = wandb.Table(columns=["Metric", "Wave Network", "BERT"])
+
         # Performance metrics
         metrics = ["accuracy", "precision", "recall", "f1", "loss"]
         for metric in metrics:
             comparison_table.add_data(
                 metric,
-                results['wave_network']['metrics'][metric],
-                results['bert']['metrics'][metric]
+                results["wave_network"]["metrics"][metric],
+                results["bert"]["metrics"][metric],
             )
-        
+
         # Resource metrics
         comparison_table.add_data(
             "Parameters",
-            results['wave_network']['resources']['parameters'],
-            results['bert']['resources']['parameters']
+            results["wave_network"]["resources"]["parameters"],
+            results["bert"]["resources"]["parameters"],
         )
         comparison_table.add_data(
             "Peak Memory (MB)",
-            results['wave_network']['resources']['memory_peak'],
-            results['bert']['resources']['memory_peak']
+            results["wave_network"]["resources"]["memory_peak"],
+            results["bert"]["resources"]["memory_peak"],
         )
-        
-        wandb.log({
-            "model_comparison": comparison_table,
-            "config_comparison": {
-                "wave_network": wave_config,
-                "bert": bert_config,
+
+        wandb.log(
+            {
+                "model_comparison": comparison_table,
+                "config_comparison": {
+                    "wave_network": wave_config,
+                    "bert": bert_config,
+                },
             }
-        })
-        
+        )
+
         # Print comparison
         print("\nFinal Test Results:")
         print("Wave Network (batch_size=64):")
-        print(f"Performance Metrics:", results['wave_network']['metrics'])
-        print(f"Resource Usage:", results['wave_network']['resources'])
+        print(f"Performance Metrics:", results["wave_network"]["metrics"])
+        print(f"Resource Usage:", results["wave_network"]["resources"])
         print("\nBERT (batch_size=32):")
-        print(f"Performance Metrics:", results['bert']['metrics'])
-        print(f"Resource Usage:", results['bert']['resources'])
+        print(f"Performance Metrics:", results["bert"]["metrics"])
+        print(f"Resource Usage:", results["bert"]["resources"])
 
     finally:
         wandb.finish()
