@@ -67,7 +67,7 @@ I'm running PyTorch 2.5.1 and CUDA 12.4 - YMMV.
 pip install -r requirements.txt
 ```
 
-# Usage
+### Train
 
 All the `train*` files are the same besides having the datasets changed up. Laziness wins.
 
