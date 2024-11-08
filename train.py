@@ -10,18 +10,85 @@ from sklearn.metrics import accuracy_score, precision_recall_fscore_support
 from torch.optim import AdamW
 from tqdm import tqdm
 from transformers import BertForSequenceClassification, get_linear_schedule_with_warmup
+from prepare_dataset import prepare_text_classification_data
+from wave_network import WaveNetwork
+from memory_efficient_wave_network import MemoryEfficientWaveNetwork
+
+# Configuration settings
+MODEL_CONFIGS = {
+    "wave_network": {
+        "name": "wave_network",
+        "learning_rate": 1e-3,
+        "batch_size": 64,
+        "model_params": {
+            "embedding_dim": 768, 
+        },
+    },
+    "bert": {
+        "name": "bert_baseline",
+        "learning_rate": 2e-5,
+        "batch_size": 32,
+        "model_params": {
+            "pretrained_model": "bert-base-uncased",
+        },
+    },
+}
+
+BASE_CONFIG = {
+    "project_name": "wave-network-vs-bert",
+    # "weight_decay": 1e-3, # orig
+    "weight_decay": 1e-5,
+    "num_epochs": 4, # orig
+    "warmup_steps": 100, # orig
+    # "max_grad_norm": 1.0, # orig
+    "max_grad_norm": 5.0,
+    # "max_length": 64, # orig
+    "max_length": 384,
+}
+
+DATA_PATHS = {
+    "train": "hf/imdb/plain_text/train-00000-of-00001.parquet",
+    "test": "hf/imdb/plain_text/test-00000-of-00001.parquet",
+}
+
+
+def get_model(model_type, vocab_size, num_classes):
+    """Factory function to create models"""
+    if model_type == "wave_network":
+        return WaveNetwork(
+            vocab_size=vocab_size,
+            embedding_dim=MODEL_CONFIGS[model_type]["model_params"]["embedding_dim"],
+            num_classes=num_classes,
+        )
+    elif model_type == "bert":
+        return BertForSequenceClassification.from_pretrained(
+            MODEL_CONFIGS[model_type]["model_params"]["pretrained_model"],
+            num_labels=num_classes,
+        )
+    else:
+        raise ValueError(f"Unknown model type: {model_type}")
+
+
+def get_config(model_type):
+    """Get configuration for specified model type"""
+    config = BASE_CONFIG.copy()
+    config.update(MODEL_CONFIGS[model_type])
+    return config
+
+
+def prepare_data(model_type):
+    """Prepare data for specified model type"""
+    return prepare_text_classification_data(
+        train_path=DATA_PATHS["train"],
+        test_path=DATA_PATHS["test"],
+        batch_size=MODEL_CONFIGS[model_type]["batch_size"],
+        max_length=BASE_CONFIG["max_length"],
+    )
 
 
 class Trainer:
     def __init__(self, model, data, config):
-        """
-        Initialize trainer
-
-        Args:
-            model: Wave Network or BERT model
-            data: Dictionary containing dataloaders and tokenizer
-            config: Training configuration
-        """
+        """Initialize trainer"""
         self.model = model
         self.data = data
         self.config = config
@@ -178,9 +245,9 @@ class Trainer:
         # Initialize wandb
         wandb.init(
             project=self.config["project_name"],
-            name=self.config["run_name"],
+            name=self.config["name"],
             config=self.config,
-            group="dbpedia_comparison",
+            group="imdb_comparison",
             reinit=True,
         )
 
@@ -232,150 +299,56 @@ class Trainer:
         return test_metrics
 
 
+def train_model(model_type):
+    """Train and evaluate a specific model type"""
+    # Prepare data and config
+    data = prepare_data(model_type)
+    config = get_config(model_type)
+
+    # Initialize model
+    model = get_model(model_type, data["vocab_size"], data["num_classes"])
+
+    # Train model
+    trainer = Trainer(model, data, config)
+    metrics = trainer.train()
+
+    # Calculate resource usage
+    resources = {
+        "parameters": sum(p.numel() for p in model.parameters()),
+        "memory_peak": (
+            torch.cuda.max_memory_allocated() / 1024 / 1024
+            if torch.cuda.is_available()
+            else 0
+        ),
+    }
+
+    return {"metrics": metrics, "resources": resources}
+
+
 def main():
-    from prepare_dataset import prepare_text_classification_data
-    from wave_network import WaveNetwork
+    results = {}
 
-    # Base configuration
-    base_config = {
-        "project_name": "wave-network-vs-bert-dbpedia",
-        "weight_decay": 0.01,
-        "num_epochs": 4,
-        "warmup_steps": 100,
-        "max_grad_norm": 1.0,
-        "max_length": 128,
-    }
-
-    # Prepare data with two different batch sizes
-    data_wave = prepare_text_classification_data(
-        train_path="hf/dbpedia_14/dbpedia_14/train-00000-of-00001.parquet",
-        test_path="hf/dbpedia_14/dbpedia_14/test-00000-of-00001.parquet",
-        batch_size=64,  # Wave Network batch size
-        max_length=base_config["max_length"],
-        text_column="content",
-    )
-
-    data_bert = prepare_text_classification_data(
-        train_path="hf/dbpedia_14/dbpedia_14/train-00000-of-00001.parquet",
-        test_path="hf/dbpedia_14/dbpedia_14/test-00000-of-00001.parquet",
-        batch_size=32,  # BERT batch size
-        max_length=base_config["max_length"],
-        text_column="content",
-    )
-
-    results = {
-        "wave_network": {"metrics": None, "resources": None},
-        "bert": {"metrics": None, "resources": None},
-    }
-
-    # Initialize wandb run for the experiment group
-    wandb.init(project=base_config["project_name"])
+    # Initialize wandb
+    wandb.init(project=BASE_CONFIG["project_name"])
 
     try:
         # Train Wave Network
-        wave_config = base_config.copy()
-        wave_config.update(
-            {
-                "run_name": "wave_network",
-                "learning_rate": 1e-3,  # Wave Network learning rate
-                "batch_size": 64,
-            }
-        )
-
-        wave_model = WaveNetwork(
-            vocab_size=data_wave["vocab_size"],
-            embedding_dim=768,
-            num_classes=data_wave["num_classes"],
-        )
-        wave_trainer = Trainer(wave_model, data_wave, wave_config)
-        wave_metrics = wave_trainer.train()
-        results["wave_network"]["metrics"] = wave_metrics
-        results["wave_network"]["resources"] = {
-            "parameters": sum(p.numel() for p in wave_model.parameters()),
-            "memory_peak": (
-                torch.cuda.max_memory_allocated() / 1024 / 1024
-                if torch.cuda.is_available()
-                else 0
-            ),
-        }
+        results["wave_network"] = train_model("wave_network")
         wandb.finish()
-        torch.cuda.reset_peak_memory_stats()  # Reset memory stats between runs
+        torch.cuda.reset_peak_memory_stats()
 
-        # Train BERT baseline
-        bert_config = base_config.copy()
-        bert_config.update(
-            {
-                "run_name": "bert_baseline",
-                "learning_rate": 2e-5,  # BERT learning rate
-                "batch_size": 32,
-            }
-        )
+        # Train BERT
+        # results["bert"] = train_model("bert")
+        # wandb.finish()
 
-        bert_model = BertForSequenceClassification.from_pretrained(
-            "bert-base-uncased", num_labels=data_bert["num_classes"]
-        )
-        bert_trainer = Trainer(bert_model, data_bert, bert_config)
-        bert_metrics = bert_trainer.train()
-        results["bert"]["metrics"] = bert_metrics
-        results["bert"]["resources"] = {
-            "parameters": sum(p.numel() for p in bert_model.parameters()),
-            "memory_peak": (
-                torch.cuda.max_memory_allocated() / 1024 / 1024
-                if torch.cuda.is_available()
-                else 0
-            ),
-        }
-        wandb.finish()
-
-        # Log comparison metrics
-        wandb.init(
-            project=base_config["project_name"],
-            name="model_comparison",
-            job_type="analysis",
-        )
-
-        # Create comparison table
-        comparison_table = wandb.Table(columns=["Metric", "Wave Network", "BERT"])
-
-        # Performance metrics
-        metrics = ["accuracy", "precision", "recall", "f1", "loss"]
-        for metric in metrics:
-            comparison_table.add_data(
-                metric,
-                results["wave_network"]["metrics"][metric],
-                results["bert"]["metrics"][metric],
-            )
-
-        # Resource metrics
-        comparison_table.add_data(
-            "Parameters",
-            results["wave_network"]["resources"]["parameters"],
-            results["bert"]["resources"]["parameters"],
-        )
-        comparison_table.add_data(
-            "Peak Memory (MB)",
-            results["wave_network"]["resources"]["memory_peak"],
-            results["bert"]["resources"]["memory_peak"],
-        )
-
-        wandb.log(
-            {
-                "model_comparison": comparison_table,
-                "config_comparison": {
-                    "wave_network": wave_config,
-                    "bert": bert_config,
-                },
-            }
-        )
-
-        # Print comparison
+        # Print results
         print("\nFinal Test Results:")
-        print("Wave Network (batch_size=64):")
-        print(f"Performance Metrics:", results["wave_network"]["metrics"])
-        print(f"Resource Usage:", results["wave_network"]["resources"])
-        print("\nBERT (batch_size=32):")
-        print(f"Performance Metrics:", results["bert"]["metrics"])
-        print(f"Resource Usage:", results["bert"]["resources"])
+        for model_type, result in results.items():
+            print(
+                f"\n{model_type.upper()} (batch_size={MODEL_CONFIGS[model_type]['batch_size']}):"
+            )
+            print(f"Performance Metrics:", result["metrics"])
+            print(f"Resource Usage:", result["resources"])
 
     finally:
         wandb.finish()
