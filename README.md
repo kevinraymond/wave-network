@@ -93,32 +93,30 @@ Resource Usage: {'parameters': 109493006, 'memory_peak': 4170.3798828125}
 
 ### IMDB
 
-*This is the only one drastically different than the paper reports, though I suspect it's something due to the longer IMDB sequences. We'll see!*
+_Still requires tuning - memory usage is much higher! This is using the last updated [train.py](train.py) script._
 
 **Latest Run:**
 
 | Metric    | Wave Network | BERT base |
 | --------- | ------------ | --------- |
-| Accuracy  | 79.80%       | 88.75%    |
-| Precision | 79.83%       | 88.75%    |
-| Recall    | 79.80%       | 88.75%    |
-| F1 Score  | 79.79%       | 88.75%    |
-| Loss      | 0.4754       | 0.3605    |
+| Accuracy  | 87.22%       | 88.69%    |
+| Precision | 87.26%       | 88.69%    |
+| Recall    | 87.22%       | 88.69%    |
+| F1 Score  | 87.21%       | 88.69%    |
+| Loss      | 0.3014       | 0.2818    |
 
 ```bash
 Final Test Results:
-Wave Network (batch_size=64):
-Performance Metrics: {'loss': 0.4753914927430165, 'accuracy': 0.79796, 'precision': np.float64(0.7983483798964435), 'recall': np.float64(0.79796), 'f1': np.float64(0.7978942263736618)}
-Resource Usage: {'parameters': 24625154, 'memory_peak': 1165.880859375}
+WAVE_NETWORK (batch_size=64):
+Performance Metrics: {'loss': 0.3014372759653479, 'accuracy': 0.87216, 'precision': np.float64(0.8725766277036728), 'recall': np.float64(0.87216), 'f1': np.float64(0.8721242512602836)}
+Resource Usage: {'parameters': 24625154, 'memory_peak': 2892.970703125}
 
 BERT (batch_size=32):
-Performance Metrics: {'loss': 0.3605447440810711, 'accuracy': 0.88748, 'precision': np.float64(0.8875063107484847), 'recall': np.float64(0.88748), 'f1': np.float64(0.887478090008091)}
-Resource Usage: {'parameters': 109483778, 'memory_peak': 4170.09716796875}
+Performance Metrics: {'loss': 0.28180405385720797, 'accuracy': 0.88688, 'precision': np.float64(0.8868966495556584), 'recall': np.float64(0.88688), 'f1': np.float64(0.8868787829966989)}
+Resource Usage: {'parameters': 109483778, 'memory_peak': 4163.06396484375}
 ```
 
 **Best Run:**
-
-*The best was ~81.92% so far, but I wasn't saving results at the time.*
 
 SAME AS LATEST
 
@@ -150,12 +148,11 @@ pip install -r requirements.txt
 
 ### Train
 
-All the `train*` files are the same besides having the datasets changed up. Laziness wins.
+Protecting sanity at all costs! I made a single [train.py](train.py) script with all the config at the top. It could still be improved, but one is better than three in this case.
 
 **NOTE**: This does have Weights & Biases; if that breaks everything for you, comment out all the `wandb.*` stuff.
 
 ```bash
-python train_ag_news.py
-python train_dbpedia.py
-python train_imdb.py
+# update config as needed, then
+python train.py
 ```
