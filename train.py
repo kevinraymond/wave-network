@@ -118,6 +118,18 @@ class Trainer:
         self.best_val_accuracy = 0
         self.best_model_path = None
 
+    def check_gradients(self):
+        """Check for NaN/Inf in gradients"""
+        for name, param in self.model.named_parameters():
+            if param.grad is not None:
+                if torch.isnan(param.grad).any():
+                    print(f"WARNING: NaN gradient in {name}")
+                    return False
+                if torch.isinf(param.grad).any():
+                    print(f"WARNING: Inf gradient in {name}")
+                    return False
+        return True
+
     def train_epoch(self, epoch):
         """Run one epoch of training"""
         self.model.train()
@@ -148,11 +160,17 @@ class Trainer:
                 loss = outputs.loss
                 logits = outputs.logits
             else:
-                logits = self.model(input_ids)
+                logits = self.model(input_ids, attention_mask=attention_mask)
                 loss = self.criterion(logits, labels)
 
             # Backward pass
             loss.backward()
+
+            # Check gradients
+            if not self.check_gradients():
+                print(f"Skipping update due to invalid gradients")
+                self.optimizer.zero_grad()
+                continue
 
             # Clip gradients
             torch.nn.utils.clip_grad_norm_(
@@ -216,7 +234,7 @@ class Trainer:
                     loss = outputs.loss
                     logits = outputs.logits
                 else:
-                    logits = self.model(input_ids)
+                    logits = self.model(input_ids, attention_mask=attention_mask)
                     loss = self.criterion(logits, labels)
 
                 total_loss += loss.item()
