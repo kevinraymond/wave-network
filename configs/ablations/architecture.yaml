@@ -1,0 +1,75 @@
+# Architecture Ablation Study
+# Tests: number of layers, embedding dimensions
+
+base:
+  name: "architecture_ablation"
+  dataset: "ag_news"
+  model:
+    model_type: "deep_wave_network"
+    vocab_size: 30522
+    num_classes: 4
+    mode: "modulation"
+  training:
+    learning_rate: 0.001
+    batch_size: 64
+    num_epochs: 4
+    seed: 42
+  logging:
+    use_wandb: true
+    wandb_project: "wave-network-ablations"
+
+num_seeds: 3
+seed_start: 42
+output_dir: "ablation_results/architecture"
+group_name: "architecture_ablation"
+
+variations:
+  # Number of layers ablation
+  - name: "layers_1"
+    model:
+      num_layers: 1
+      embedding_dim: 768
+    tags: ["architecture", "num_layers"]
+
+  - name: "layers_2"
+    model:
+      num_layers: 2
+      embedding_dim: 768
+    tags: ["architecture", "num_layers"]
+
+  - name: "layers_3"
+    model:
+      num_layers: 3
+      embedding_dim: 768
+    tags: ["architecture", "num_layers"]
+
+  - name: "layers_4"
+    model:
+      num_layers: 4
+      embedding_dim: 768
+    tags: ["architecture", "num_layers"]
+
+  - name: "layers_6"
+    model:
+      num_layers: 6
+      embedding_dim: 768
+    tags: ["architecture", "num_layers"]
+
+  # Embedding dimension ablation
+  - name: "emb_256"
+    model:
+      num_layers: 1
+      embedding_dim: 256
+    tags: ["architecture", "embedding_dim"]
+
+  - name: "emb_512"
+    model:
+      num_layers: 1
+      embedding_dim: 512
+    tags: ["architecture", "embedding_dim"]
+
+  - name: "emb_768"
+    model:
+      num_layers: 1
+      embedding_dim: 768
+    tags: ["architecture", "embedding_dim"]

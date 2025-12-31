@@ -1,0 +1,69 @@
+# Model Comparison Ablation
+# Compares Wave Network variants vs FNet
+
+base:
+  name: "model_comparison"
+  dataset: "ag_news"
+  model:
+    vocab_size: 30522
+    embedding_dim: 768
+    num_classes: 4
+  training:
+    learning_rate: 0.001
+    batch_size: 64
+    num_epochs: 4
+    seed: 42
+  logging:
+    use_wandb: true
+    wandb_project: "wave-network-ablations"
+
+num_seeds: 3
+seed_start: 42
+output_dir: "ablation_results/model_comparison"
+group_name: "model_comparison"
+
+variations:
+  # Wave Network variants
+  - name: "wave_network_mod"
+    model:
+      model_type: "wave_network"
+      mode: "modulation"
+    tags: ["model_type", "wave"]
+
+  - name: "wave_network_int"
+    model:
+      model_type: "wave_network"
+      mode: "interference"
+    tags: ["model_type", "wave"]
+
+  - name: "deep_wave_3"
+    model:
+      model_type: "deep_wave_network"
+      num_layers: 3
+      mode: "modulation"
+    tags: ["model_type", "deep_wave"]
+
+  # FNet variants
+  - name: "fnet_3"
+    model:
+      model_type: "fnet"
+      num_layers: 3
+    training:
+      learning_rate: 0.0001  # FNet typically needs lower LR
+    tags: ["model_type", "fnet"]
+
+  - name: "fnet_6"
+    model:
+      model_type: "fnet"
+      num_layers: 6
+    training:
+      learning_rate: 0.0001
+    tags: ["model_type", "fnet"]
+
+  - name: "fnet_lite_3"
+    model:
+      model_type: "fnet_lite"
+      num_layers: 3
+    training:
+      learning_rate: 0.0001
+    tags: ["model_type", "fnet_lite"]

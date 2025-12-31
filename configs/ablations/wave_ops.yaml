@@ -1,0 +1,43 @@
+# Wave Operations Ablation Study
+# Tests: modulation vs interference vs learnable mixing
+
+base:
+  name: "wave_ops_ablation"
+  dataset: "ag_news"
+  model:
+    model_type: "wave_network"
+    vocab_size: 30522
+    embedding_dim: 768
+    num_classes: 4
+  training:
+    learning_rate: 0.001
+    batch_size: 64
+    num_epochs: 4
+    seed: 42
+  logging:
+    use_wandb: true
+    wandb_project: "wave-network-ablations"
+
+num_seeds: 3
+seed_start: 42
+output_dir: "ablation_results/wave_ops"
+group_name: "wave_ops_ablation"
+
+variations:
+  - name: "modulation"
+    model:
+      mode: "modulation"
+      learnable_mode: false
+    tags: ["wave_ops", "mode"]
+
+  - name: "interference"
+    model:
+      mode: "interference"
+      learnable_mode: false
+    tags: ["wave_ops", "mode"]
+
+  - name: "learnable"
+    model:
+      mode: "modulation"
+      learnable_mode: true
+    tags: ["wave_ops", "mode", "learnable"]

@@ -1,0 +1,71 @@
+# W&B Hyperparameter Sweep Configuration
+# Bayesian optimization for Wave Network hyperparameters
+
+program: scripts/run_sweep.py
+method: bayes
+
+metric:
+  name: val_accuracy
+  goal: maximize
+
+parameters:
+  # Model architecture
+  model_type:
+    values:
+      - wave_network
+      - deep_wave_network
+
+  embedding_dim:
+    values:
+      - 256
+      - 512
+      - 768
+
+  num_layers:
+    values:
+      - 1
+      - 2
+      - 3
+      - 4
+
+  mode:
+    values:
+      - modulation
+      - interference
+
+  # Training
+  learning_rate:
+    distribution: log_uniform_values
+    min: 0.00001
+    max: 0.01
+
+  batch_size:
+    values:
+      - 32
+      - 64
+      - 128
+
+  weight_decay:
+    distribution: log_uniform_values
+    min: 0.000001
+    max: 0.001
+
+  max_grad_norm:
+    values:
+      - 1.0
+      - 5.0
+      - 10.0
+
+  # Fixed parameters
+  num_epochs:
+    value: 4
+
+  dataset:
+    value: ag_news
+
+# Early termination
+early_terminate:
+  type: hyperband
+  min_iter: 2
+  max_iter: 4
+  s: 2
