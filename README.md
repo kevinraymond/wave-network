@@ -156,3 +156,107 @@ Protecting sanity at all costs! I made a single [train.py](train.py) script with
 # update config as needed, then
 python train.py
 ```
+
+---
+
+## GLUE Benchmark Results
+
+We evaluated Wave Network against [FNet](https://arxiv.org/abs/2105.03824) (another Fourier-based model) on the full GLUE benchmark. FNet replaces attention with 2D FFT and serves as a natural comparison point for our wave-based approach.
+
+### Wave Network vs FNet Comparison
+
+| Task | Metric | Wave Network | FNet | Winner | BERT |
+|------|--------|-------------|------|--------|------|
+| **SST-2** | Accuracy | **80.5%** | 79.5% | Wave | 93% |
+| **CoLA** | Matthews | **0.129** | 0.000 | Wave | 52% |
+| **MRPC** | Accuracy | **69.9%** | 68.4% | Wave | 86% |
+| **QQP** | Accuracy | **79.9%** | 76.6% | Wave | 91% |
+| **QNLI** | Accuracy | 59.7% | **61.9%** | FNet | 91% |
+| **RTE** | Accuracy | 49.5% | **52.7%** | FNet | 66% |
+| **MNLI** | Accuracy | 51.2% | **53.4%** | FNet | 84% |
+| **STS-B** | Pearson | **0.126** | 0.103 | Wave | 85% |
+
+**Summary:** Wave Network wins 5/8 tasks with **less than half the parameters** (24.6M vs 52.2M).
+
+### Key Findings
+
+1. **Classification strength**: Wave Network excels at sentiment analysis (SST-2) and paraphrase detection (QQP, MRPC) - tasks where semantic similarity matters most
+
+2. **NLI weakness**: Both models struggle on natural language inference tasks (QNLI, RTE, MNLI), suggesting lightweight architectures need attention-like mechanisms for complex reasoning
+
+3. **Parameter efficiency**: Wave Network achieves competitive results with 2x fewer parameters than FNet
+
+4. **Stability**: Wave Network required gradient checking to prevent NaN issues during training on some tasks
+
+### Running GLUE Benchmarks
+
+```bash
+# Install GLUE dependencies
+uv pip install datasets evaluate
+
+# Run single task
+python train_glue.py --task sst2 --model wave_network --lr 0.0001
+
+# Run all tasks
+python train_glue.py --task all --model wave_network
+
+# Compare models
+python train_glue.py --task sst2 --model wave_network fnet
+
+# List available tasks
+python train_glue.py --list-tasks
+```
+
+Results are saved to `glue_results/` as JSON files.
+
+---
+
+## Next Steps for Performance Improvement
+
+Based on our GLUE results, here are the most promising directions for boosting Wave Network performance:
+
+### 1. Training Improvements
+
+- **More epochs**: Current runs use 3-5 epochs. Increasing to 10-20 epochs with early stopping could help, especially on smaller datasets (RTE, CoLA)
+- **Learning rate scheduling**: Implement cosine annealing or reduce-on-plateau instead of linear warmup only
+- **Larger batch sizes**: With gradient accumulation, simulate batch sizes of 128-256 for more stable gradients
+- **Mixed precision training**: Enable FP16/BF16 for faster training and potential regularization benefits
+
+### 2. Architecture Changes
+
+- **Depth**: Current model is shallow. Adding more WaveLayers (4-6) with residual connections may improve reasoning tasks
+- **Pre-LayerNorm**: Switch to pre-norm architecture for more stable deep training
+- **Learned position embeddings**: Current sinusoidal positions may limit sequence understanding
+- **Multi-scale wave operations**: Combine modulation and interference modes instead of selecting one
+
+### 3. Data & Augmentation
+
+- **Pre-training**: Pre-train on large corpus (Wikipedia, BookCorpus) before fine-tuning on GLUE
+- **Data augmentation**: Back-translation, synonym replacement, or mixup for small datasets
+- **Longer sequences**: Increase max_length from 128 to 256-512 for tasks with longer inputs
+
+### 4. Task-Specific Tuning
+
+- **NLI tasks**: Add cross-sentence attention or explicit entailment heads
+- **Regression (STS-B)**: Use different loss functions (e.g., cosine embedding loss)
+- **Small datasets (RTE, CoLA)**: Apply aggressive dropout (0.3-0.5) and weight decay
+
+### 5. Hyperparameter Search
+
+Priority hyperparameters to tune:
+- Learning rate: [1e-5, 5e-5, 1e-4, 5e-4]
+- Weight decay: [0.0, 0.01, 0.1]
+- Dropout: [0.1, 0.2, 0.3]
+- Embedding dim: [512, 768, 1024]
+- Number of layers: [1, 2, 3, 4, 6]
+
+Use W&B sweeps for systematic exploration:
+```bash
+wandb sweep configs/sweeps/hyperparameter_sweep.yaml
+```
+
+### Research Questions
+
+1. Can pre-training close the gap with BERT on NLI tasks?
+2. Does increasing depth help Wave Network on reasoning tasks?
+3. Would hybrid attention-wave architectures get the best of both worlds?

@@ -1,0 +1,71 @@
+{
+  "best_val_metrics": {
+    "loss": 0.6475219356291222,
+    "matthews_correlation": 0.1286070006974097
+  },
+  "final_val_metrics": {
+    "loss": 0.6795438130696615,
+    "matthews_correlation": 0.11445668376703459
+  },
+  "history": [
+    {
+      "epoch": 1,
+      "train": {
+        "loss": 0.6349048801322481,
+        "matthews_correlation": 0.015963341082557186
+      },
+      "val": {
+        "loss": 0.6057907812523119,
+        "matthews_correlation": 0.058936921430734465
+      }
+    },
+    {
+      "epoch": 2,
+      "train": {
+        "loss": 0.5646649791455981,
+        "matthews_correlation": 0.15690704764395483
+      },
+      "val": {
+        "loss": 0.6186939450827512,
+        "matthews_correlation": 0.11910886319974401
+      }
+    },
+    {
+      "epoch": 3,
+      "train": {
+        "loss": 0.5064849357551603,
+        "matthews_correlation": 0.30452731259627464
+      },
+      "val": {
+        "loss": 0.6475219356291222,
+        "matthews_correlation": 0.1286070006974097
+      }
+    },
+    {
+      "epoch": 4,
+      "train": {
+        "loss": 0.45647540460549185,
+        "matthews_correlation": 0.41512033997881337
+      },
+      "val": {
+        "loss": 0.680223260865067,
+        "matthews_correlation": 0.11303771903652417
+      }
+    },
+    {
+      "epoch": 5,
+      "train": {
+        "loss": 0.41374242756126534,
+        "matthews_correlation": 0.47813571718248166
+      },
+      "val": {
+        "loss": 0.6795438130696615,
+        "matthews_correlation": 0.11445668376703459
+      }
+    }
+  ],
+  "task": "cola",
+  "model": "wave_network",
+  "num_params": 24625154,
+  "timestamp": "2026-01-01T06:46:07.586298"
+}

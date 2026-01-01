@@ -1,0 +1,68 @@
+{
+  "best_val_metrics": {},
+  "final_val_metrics": {
+    "loss": 0.6115351933421511,
+    "matthews_correlation": 0.0
+  },
+  "history": [
+    {
+      "epoch": 1,
+      "train": {
+        "loss": 0.6147295579091826,
+        "matthews_correlation": -0.005972066534754306
+      },
+      "val": {
+        "loss": 0.6201953562823209,
+        "matthews_correlation": 0.0
+      }
+    },
+    {
+      "epoch": 2,
+      "train": {
+        "loss": 0.5974868579364535,
+        "matthews_correlation": 0.006849826278856876
+      },
+      "val": {
+        "loss": 0.6121141097762368,
+        "matthews_correlation": 0.0
+      }
+    },
+    {
+      "epoch": 3,
+      "train": {
+        "loss": 0.5839569689844971,
+        "matthews_correlation": 0.0
+      },
+      "val": {
+        "loss": 0.6113210772023057,
+        "matthews_correlation": 0.0
+      }
+    },
+    {
+      "epoch": 4,
+      "train": {
+        "loss": 0.5749520427033082,
+        "matthews_correlation": 0.02679749748282704
+      },
+      "val": {
+        "loss": 0.6123120197744081,
+        "matthews_correlation": 0.0
+      }
+    },
+    {
+      "epoch": 5,
+      "train": {
+        "loss": 0.5654623428387429,
+        "matthews_correlation": 0.026391917838690507
+      },
+      "val": {
+        "loss": 0.6115351933421511,
+        "matthews_correlation": 0.0
+      }
+    }
+  ],
+  "task": "cola",
+  "model": "fnet",
+  "num_params": 52190210,
+  "timestamp": "2026-01-01T07:19:58.427465"
+}
