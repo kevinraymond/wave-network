@@ -4,8 +4,9 @@ import torch.nn as nn
 
 class WaveLayer(nn.Module):
     """Single wave processing layer"""
+
     def __init__(self, embedding_dim, mode="modulation", eps=1e-8):
-        super(WaveLayer, self).__init__()
+        super().__init__()
         self.mode = mode
         self.eps = eps
         self.embedding_dim = embedding_dim
@@ -101,18 +102,25 @@ class DeepWaveNetwork(nn.Module):
         >>> attention_mask = torch.ones(8, 128)
         >>> output = model(input_ids, attention_mask)  # (8, 2)
     """
-    def __init__(self, vocab_size, embedding_dim=768, num_classes=4,
-                 num_layers=3, mode="modulation", eps=1e-8):
-        super(DeepWaveNetwork, self).__init__()
+
+    def __init__(
+        self,
+        vocab_size,
+        embedding_dim=768,
+        num_classes=4,
+        num_layers=3,
+        mode="modulation",
+        eps=1e-8,
+    ):
+        super().__init__()
 
         self.embedding = nn.Embedding(vocab_size, embedding_dim)
         nn.init.uniform_(self.embedding.weight, -0.1, 0.1)
 
         # Stack of wave layers
-        self.wave_layers = nn.ModuleList([
-            WaveLayer(embedding_dim, mode=mode, eps=eps)
-            for _ in range(num_layers)
-        ])
+        self.wave_layers = nn.ModuleList(
+            [WaveLayer(embedding_dim, mode=mode, eps=eps) for _ in range(num_layers)]
+        )
 
         # Classifier
         self.classifier = nn.Linear(embedding_dim, num_classes)

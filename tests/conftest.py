@@ -1,9 +1,10 @@
 """Pytest configuration and shared fixtures for Wave Network tests."""
 
-import pytest
-import torch
 import sys
 from pathlib import Path
+
+import pytest
+import torch
 
 # Add project root to path for imports
 project_root = Path(__file__).parent.parent
@@ -50,8 +51,7 @@ def standard_config():
 def sample_input(small_config):
     """Generate sample input tensors for testing."""
     return torch.randint(
-        0, small_config["vocab_size"],
-        (small_config["batch_size"], small_config["seq_len"])
+        0, small_config["vocab_size"], (small_config["batch_size"], small_config["seq_len"])
     )
 
 
@@ -76,7 +76,7 @@ def partial_mask(small_config):
     batch_size = small_config["batch_size"]
     seq_len = small_config["seq_len"]
     mask = torch.ones(batch_size, seq_len)
-    mask[:, seq_len // 2:] = 0
+    mask[:, seq_len // 2 :] = 0
     return mask
 
 
@@ -84,6 +84,7 @@ def partial_mask(small_config):
 def wave_network_model(small_config):
     """Create a small WaveNetwork for testing."""
     from wave_network import WaveNetwork
+
     return WaveNetwork(
         vocab_size=small_config["vocab_size"],
         embedding_dim=small_config["embedding_dim"],
@@ -95,6 +96,7 @@ def wave_network_model(small_config):
 def deep_wave_network_model(small_config):
     """Create a small DeepWaveNetwork for testing."""
     from wave_network_deep import DeepWaveNetwork
+
     return DeepWaveNetwork(
         vocab_size=small_config["vocab_size"],
         embedding_dim=small_config["embedding_dim"],
@@ -107,6 +109,7 @@ def deep_wave_network_model(small_config):
 def wave_attention_model(small_config):
     """Create a WaveAttention module for testing."""
     from wave_attention import WaveAttention
+
     return WaveAttention(
         embedding_dim=small_config["embedding_dim"],
         num_heads=8,
@@ -118,9 +121,7 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers", "slow: marks tests as slow (deselect with '-m \"not slow\"')"
     )
-    config.addinivalue_line(
-        "markers", "gpu: marks tests that require GPU"
-    )
+    config.addinivalue_line("markers", "gpu: marks tests that require GPU")
 
 
 def pytest_collection_modifyitems(config, items):

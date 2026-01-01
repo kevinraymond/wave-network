@@ -1,15 +1,15 @@
-import numpy as np
 import os
-import psutil
 import time
+
+import psutil
 import torch
 import torch.nn as nn
 import wandb
-
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support
 from torch.optim import AdamW
 from tqdm import tqdm
 from transformers import BertForSequenceClassification, get_linear_schedule_with_warmup
+
 from prepare_dataset import prepare_text_classification_data
 from wave_network import WaveNetwork
 
@@ -168,14 +168,12 @@ class Trainer:
 
             # Check gradients
             if not self.check_gradients():
-                print(f"Skipping update due to invalid gradients")
+                print("Skipping update due to invalid gradients")
                 self.optimizer.zero_grad()
                 continue
 
             # Clip gradients
-            torch.nn.utils.clip_grad_norm_(
-                self.model.parameters(), self.config["max_grad_norm"]
-            )
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.config["max_grad_norm"])
 
             # Update weights
             self.optimizer.step()
@@ -295,9 +293,7 @@ class Trainer:
                 self.best_val_accuracy = val_metrics["accuracy"]
                 if self.best_model_path:
                     os.remove(self.best_model_path)
-                self.best_model_path = (
-                    f"models/model_{epoch}_{val_metrics['accuracy']:.4f}.pt"
-                )
+                self.best_model_path = f"models/model_{epoch}_{val_metrics['accuracy']:.4f}.pt"
                 torch.save(self.model.state_dict(), self.best_model_path)
 
         # Final test evaluation
@@ -333,9 +329,7 @@ def train_model(model_type):
     resources = {
         "parameters": sum(p.numel() for p in model.parameters()),
         "memory_peak": (
-            torch.cuda.max_memory_allocated() / 1024 / 1024
-            if torch.cuda.is_available()
-            else 0
+            torch.cuda.max_memory_allocated() / 1024 / 1024 if torch.cuda.is_available() else 0
         ),
     }
 
@@ -361,11 +355,9 @@ def main():
         # Print results
         print("\nFinal Test Results:")
         for model_type, result in results.items():
-            print(
-                f"\n{model_type.upper()} (batch_size={MODEL_CONFIGS[model_type]['batch_size']}):"
-            )
-            print(f"Performance Metrics:", result["metrics"])
-            print(f"Resource Usage:", result["resources"])
+            print(f"\n{model_type.upper()} (batch_size={MODEL_CONFIGS[model_type]['batch_size']}):")
+            print("Performance Metrics:", result["metrics"])
+            print("Resource Usage:", result["resources"])
 
     finally:
         wandb.finish()

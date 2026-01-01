@@ -1,11 +1,11 @@
+from typing import Optional, Union
+
 import numpy as np
 import pandas as pd
 import torch
-
 from sklearn.model_selection import train_test_split
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import DataLoader, Dataset
 from transformers import AutoTokenizer
-from typing import Dict, Optional, Union, List
 
 
 class TextClassificationDataset(Dataset):
@@ -59,8 +59,8 @@ def prepare_text_classification_data(
     batch_size: int = 64,
     random_state: int = 42,
     num_workers: int = 2,
-    label_mapping: Optional[Dict[Union[str, int], int]] = None,
-) -> Dict:
+    label_mapping: Optional[dict[Union[str, int], int]] = None,
+) -> dict:
     """
     Prepare any text classification dataset stored in parquet format for training.
 
@@ -83,7 +83,7 @@ def prepare_text_classification_data(
     # Load the data
     train_df = pd.read_parquet(train_path)
     test_df = pd.read_parquet(test_path)
-    
+
     # Add split size logging
     total_train_size = len(train_df)
 
@@ -153,12 +153,12 @@ def prepare_text_classification_data(
     test_loader = DataLoader(
         test_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers
     )
-    
+
     # Add detailed split reporting
     train_size = len(train_texts)
     val_size_actual = len(val_texts)
     test_size = len(test_df)
-    
+
     print("\nDataset Split Details:")
     print(f"Total training data: {total_train_size}")
     print(f"Training set: {train_size} ({train_size/total_train_size:.1%})")
@@ -178,9 +178,9 @@ def prepare_text_classification_data(
             "train_size": train_size,
             "val_size": val_size_actual,
             "test_size": test_size,
-            "train_ratio": train_size/total_train_size,
-            "val_ratio": val_size_actual/total_train_size
-        }
+            "train_ratio": train_size / total_train_size,
+            "val_ratio": val_size_actual / total_train_size,
+        },
     }
 
 
@@ -191,7 +191,6 @@ def main():
     test_path = "hf/ag_news/data/test-00000-of-00001.parquet"
 
     # Example with custom label mapping (if needed)
-    label_mapping = {"World": 0, "Sports": 1, "Business": 2, "Sci/Tech": 3}
 
     data = prepare_text_classification_data(
         train_path=train_path,

@@ -13,8 +13,8 @@ Key insights from the paper:
 """
 
 import torch
-import torch.nn as nn
 import torch.fft
+import torch.nn as nn
 
 
 class FourierMixing(nn.Module):
@@ -199,10 +199,9 @@ class FNet(nn.Module):
         if ffn_dim is None:
             ffn_dim = 4 * embedding_dim
 
-        self.encoder_layers = nn.ModuleList([
-            FNetEncoderBlock(embedding_dim, ffn_dim, dropout)
-            for _ in range(num_layers)
-        ])
+        self.encoder_layers = nn.ModuleList(
+            [FNetEncoderBlock(embedding_dim, ffn_dim, dropout) for _ in range(num_layers)]
+        )
 
         # Final layer norm
         self.final_norm = nn.LayerNorm(embedding_dim)
@@ -291,10 +290,9 @@ class FNetLite(nn.Module):
 
         # Encoder layers with smaller FFN
         ffn_dim = ffn_multiplier * embedding_dim
-        self.encoder_layers = nn.ModuleList([
-            FNetEncoderBlock(embedding_dim, ffn_dim, dropout)
-            for _ in range(num_layers)
-        ])
+        self.encoder_layers = nn.ModuleList(
+            [FNetEncoderBlock(embedding_dim, ffn_dim, dropout) for _ in range(num_layers)]
+        )
 
         # Final norm
         self.final_norm = nn.LayerNorm(embedding_dim)

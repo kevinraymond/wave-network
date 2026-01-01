@@ -5,12 +5,13 @@ Provides dataclasses for experiment configuration and YAML serialization.
 Used by ablation runner and sweep scripts for reproducible experiments.
 """
 
-from dataclasses import dataclass, field, asdict
-from typing import Optional, Literal, List
-from pathlib import Path
-import yaml
 import json
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
+from pathlib import Path
+from typing import Literal, Optional
+
+import yaml
 
 
 @dataclass
@@ -23,7 +24,9 @@ class ModelConfig:
     num_classes: int = 4
 
     # Architecture type
-    model_type: Literal["wave_network", "deep_wave_network", "wave_attention", "fnet", "fnet_lite"] = "wave_network"
+    model_type: Literal[
+        "wave_network", "deep_wave_network", "wave_attention", "fnet", "fnet_lite"
+    ] = "wave_network"
 
     # Wave Network specific
     mode: Literal["modulation", "interference", "learnable"] = "modulation"
@@ -120,7 +123,7 @@ class ExperimentConfig:
     # Identification
     name: str = "experiment"
     description: str = ""
-    tags: List[str] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
 
     # Components
     model: ModelConfig = field(default_factory=ModelConfig)
@@ -187,7 +190,7 @@ class AblationConfig:
 
     # Ablation variations
     # Each item is a dict of updates to apply to base config
-    variations: List[dict] = field(default_factory=list)
+    variations: list[dict] = field(default_factory=list)
 
     # Execution settings
     num_seeds: int = 3
@@ -210,7 +213,7 @@ class AblationConfig:
 
         return cls(**data)
 
-    def generate_experiments(self) -> List[ExperimentConfig]:
+    def generate_experiments(self) -> list[ExperimentConfig]:
         """Generate all experiment configs for this ablation."""
         experiments = []
 
@@ -259,10 +262,10 @@ def create_model_from_config(config: ModelConfig):
     Returns:
         Instantiated model
     """
+    from models.fnet import FNet, FNetLite
+    from wave_attention import WaveAttentionNetwork
     from wave_network import WaveNetwork
     from wave_network_deep import DeepWaveNetwork
-    from wave_attention import WaveAttentionNetwork
-    from models.fnet import FNet, FNetLite
 
     model_classes = {
         "wave_network": WaveNetwork,

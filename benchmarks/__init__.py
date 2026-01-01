@@ -3,13 +3,13 @@
 from benchmarks.glue import (
     GLUE_TASKS,
     TASK_HYPERPARAMS,
-    TaskType,
-    GLUETask,
     GLUEDataset,
     GLUEMetrics,
-    load_glue_task,
+    GLUETask,
+    TaskType,
     get_task_info,
     list_tasks,
+    load_glue_task,
     print_task_summary,
 )
 

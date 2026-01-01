@@ -1,8 +1,9 @@
 """Unit tests for GLUE benchmark integration."""
 
-import pytest
 import sys
 from pathlib import Path
+
+import pytest
 
 # Add project root to path
 project_root = Path(__file__).parent.parent.parent
@@ -11,9 +12,9 @@ sys.path.insert(0, str(project_root))
 from benchmarks.glue import (
     GLUE_TASKS,
     TASK_HYPERPARAMS,
-    TaskType,
-    GLUETask,
     GLUEMetrics,
+    GLUETask,
+    TaskType,
     get_task_info,
     list_tasks,
 )
@@ -85,7 +86,7 @@ class TestTaskHyperparams:
 
     def test_reasonable_values(self):
         """Test that hyperparameters have reasonable values."""
-        for task_name, params in TASK_HYPERPARAMS.items():
+        for _task_name, params in TASK_HYPERPARAMS.items():
             assert 1e-6 < params["learning_rate"] < 1e-1
             assert 8 <= params["batch_size"] <= 256
             assert 32 <= params["max_length"] <= 512

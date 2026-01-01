@@ -85,13 +85,11 @@ filterwarnings = [
 
 # Coverage configuration
 [tool.coverage.run]
-source = ["."]
+source = ["models", "benchmarks"]
 omit = [
     "tests/*",
     "experiments/*",
-    "benchmarks/*",
     "scripts/*",
-    "*.py",  # Exclude root level scripts from coverage initially
 ]
 branch = true
 
@@ -128,6 +126,10 @@ ignore = [
 
 [tool.ruff.lint.isort]
 known-first-party = ["models", "benchmarks", "experiments"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["E402"]  # Allow imports after sys.path manipulation
+"wave_attention.py" = ["N806"]  # Q, K, V are standard attention variable names
 
 # Black configuration
 [tool.black]

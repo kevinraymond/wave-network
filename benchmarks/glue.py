@@ -20,19 +20,22 @@ References:
 """
 
 from dataclasses import dataclass
-from typing import Optional, Tuple, List, Dict, Any, Callable
 from enum import Enum
+from typing import Any, Optional
+
 import torch
 from torch.utils.data import DataLoader, Dataset
 
 try:
     from datasets import load_dataset
+
     DATASETS_AVAILABLE = True
 except ImportError:
     DATASETS_AVAILABLE = False
 
 try:
     import evaluate
+
     EVALUATE_AVAILABLE = True
 except ImportError:
     EVALUATE_AVAILABLE = False
@@ -40,6 +43,7 @@ except ImportError:
 
 class TaskType(Enum):
     """Types of GLUE tasks."""
+
     SINGLE_SENTENCE = "single"
     SENTENCE_PAIR = "pair"
     REGRESSION = "regression"
@@ -48,11 +52,12 @@ class TaskType(Enum):
 @dataclass
 class GLUETask:
     """Definition of a GLUE task."""
+
     name: str
     task_type: TaskType
     num_labels: int
-    metric_names: List[str]
-    text_columns: Tuple[str, ...]
+    metric_names: list[str]
+    text_columns: tuple[str, ...]
     label_column: str = "label"
 
     # For sentence pair tasks
@@ -66,7 +71,7 @@ class GLUETask:
 
 
 # GLUE Task Definitions
-GLUE_TASKS: Dict[str, GLUETask] = {
+GLUE_TASKS: dict[str, GLUETask] = {
     "sst2": GLUETask(
         name="sst2",
         task_type=TaskType.SINGLE_SENTENCE,
@@ -140,7 +145,7 @@ GLUE_TASKS: Dict[str, GLUETask] = {
 
 
 # Task-specific hyperparameters (based on BERT fine-tuning recommendations)
-TASK_HYPERPARAMS: Dict[str, Dict[str, Any]] = {
+TASK_HYPERPARAMS: dict[str, dict[str, Any]] = {
     "sst2": {
         "learning_rate": 1e-3,
         "batch_size": 32,
@@ -226,7 +231,7 @@ class GLUEDataset(Dataset):
     def __len__(self) -> int:
         return len(self.dataset)
 
-    def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
+    def __getitem__(self, idx: int) -> dict[str, torch.Tensor]:
         item = self.dataset[idx]
 
         # Get text(s)
@@ -274,7 +279,7 @@ def load_glue_task(
     batch_size: Optional[int] = None,
     max_length: Optional[int] = None,
     num_workers: int = 0,
-) -> Dict[str, DataLoader]:
+) -> dict[str, DataLoader]:
     """
     Load a GLUE task with train/validation/test dataloaders.
 
@@ -363,9 +368,9 @@ class GLUEMetrics:
 
     def compute(
         self,
-        predictions: List[int],
-        references: List[int],
-    ) -> Dict[str, float]:
+        predictions: list[int],
+        references: list[int],
+    ) -> dict[str, float]:
         """
         Compute metrics for predictions.
 
@@ -384,16 +389,16 @@ class GLUEMetrics:
 
     def _compute_fallback(
         self,
-        predictions: List[int],
-        references: List[int],
-    ) -> Dict[str, float]:
+        predictions: list[int],
+        references: list[int],
+    ) -> dict[str, float]:
         """Fallback metric computation without evaluate library."""
+        from scipy.stats import pearsonr, spearmanr
         from sklearn.metrics import (
             accuracy_score,
             f1_score,
             matthews_corrcoef,
         )
-        from scipy.stats import pearsonr, spearmanr
 
         results = {}
 
@@ -412,7 +417,7 @@ class GLUEMetrics:
         return results
 
 
-def get_task_info(task_name: str) -> Dict[str, Any]:
+def get_task_info(task_name: str) -> dict[str, Any]:
     """
     Get information about a GLUE task.
 
@@ -441,7 +446,7 @@ def get_task_info(task_name: str) -> Dict[str, Any]:
     }
 
 
-def list_tasks() -> List[str]:
+def list_tasks() -> list[str]:
     """List all available GLUE tasks."""
     return list(GLUE_TASKS.keys())
 
@@ -457,6 +462,8 @@ def print_task_summary():
     for name, task in GLUE_TASKS.items():
         metrics_str = ", ".join(task.metric_names)
         cols_str = ", ".join(task.text_columns)
-        print(f"{name:<8} {task.task_type.value:<12} {task.num_labels:<8} {metrics_str:<25} {cols_str}")
+        print(
+            f"{name:<8} {task.task_type.value:<12} {task.num_labels:<8} {metrics_str:<25} {cols_str}"
+        )
 
     print("=" * 80 + "\n")

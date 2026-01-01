@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 
 class WaveNetwork(nn.Module):
@@ -30,27 +29,35 @@ class WaveNetwork(nn.Module):
         >>> attention_mask = torch.ones(8, 128)
         >>> output = model(input_ids, attention_mask)  # (8, 2)
     """
-    def __init__(self, vocab_size, embedding_dim=768, num_classes=4, mode="modulation",
-                 eps=1e-8, learnable_mode=False):
-        super(WaveNetwork, self).__init__()
+
+    def __init__(
+        self,
+        vocab_size,
+        embedding_dim=768,
+        num_classes=4,
+        mode="modulation",
+        eps=1e-8,
+        learnable_mode=False,
+    ):
+        super().__init__()
         self.mode = mode
         self.embedding_dim = embedding_dim
         self.eps = eps
         self.learnable_mode = learnable_mode
-        
+
         # Token embedding in frequency domain
         self.embedding = nn.Embedding(vocab_size, embedding_dim)
-        
+
         # Frequency domain transformations
         self.linear1 = nn.Linear(embedding_dim, embedding_dim)
         self.linear2 = nn.Linear(embedding_dim, embedding_dim)
-        
+
         # Orthogonal initialization for frequency preservation
         nn.init.orthogonal_(self.linear1.weight)
         nn.init.orthogonal_(self.linear2.weight)
         nn.init.zeros_(self.linear1.bias)
         nn.init.zeros_(self.linear2.bias)
-        
+
         self.layer_norm = nn.LayerNorm(embedding_dim)
         self.classifier = nn.Linear(embedding_dim, num_classes)
 
@@ -70,7 +77,7 @@ class WaveNetwork(nn.Module):
         """Calculate global semantics per dimension as per paper section 3.1.1"""
         # Square each element (signal energy E = w²j,k)
         squared = x * x
-        
+
         # Sum squared values per dimension (Gk = ||w:,k||2)
         return torch.sqrt(torch.sum(squared, dim=1, keepdim=True))
 
@@ -78,10 +85,10 @@ class WaveNetwork(nn.Module):
         """Calculate phase components as per section 3.1.2"""
         # Calculate ratio wj,k/Gk
         ratio = x / (global_semantics + self.eps)
-        
+
         # Calculate sqrt(1-(wj,k/Gk)²) term
         sqrt_term = torch.sqrt(torch.clamp(1 - ratio**2, min=0, max=1))
-        
+
         # Return both components for arctan2
         return sqrt_term, ratio
 

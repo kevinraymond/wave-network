@@ -17,9 +17,9 @@ Usage:
 import argparse
 import json
 import logging
-from pathlib import Path
 from datetime import datetime
-from typing import Dict, Any, List, Optional
+from pathlib import Path
+from typing import Any, Optional
 
 import torch
 import torch.nn as nn
@@ -28,6 +28,7 @@ from transformers import AutoTokenizer, get_linear_schedule_with_warmup
 
 try:
     import wandb
+
     WANDB_AVAILABLE = True
 except ImportError:
     WANDB_AVAILABLE = False
@@ -35,15 +36,15 @@ except ImportError:
 from benchmarks.glue import (
     GLUE_TASKS,
     TASK_HYPERPARAMS,
-    load_glue_task,
     GLUEMetrics,
     TaskType,
     list_tasks,
+    load_glue_task,
     print_task_summary,
 )
+from models.fnet import FNet, FNetLite
 from wave_network import WaveNetwork
 from wave_network_deep import DeepWaveNetwork
-from models.fnet import FNet, FNetLite
 
 logging.basicConfig(
     level=logging.INFO,
@@ -113,7 +114,7 @@ class GLUETrainer:
         optimizer,
         scheduler=None,
         max_grad_norm: float = 1.0,
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """Train for one epoch."""
         self.model.train()
         total_loss = 0.0
@@ -177,7 +178,7 @@ class GLUETrainer:
 
         return metrics
 
-    def evaluate(self, eval_loader) -> Dict[str, float]:
+    def evaluate(self, eval_loader) -> dict[str, float]:
         """Evaluate on a dataset."""
         self.model.eval()
         total_loss = 0.0
@@ -218,7 +219,7 @@ class GLUETrainer:
         weight_decay: float = 0.01,
         warmup_ratio: float = 0.1,
         max_grad_norm: float = 1.0,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Full training loop."""
         # Optimizer
         optimizer = AdamW(
@@ -245,9 +246,7 @@ class GLUETrainer:
 
         for epoch in range(num_epochs):
             # Train
-            train_metrics = self.train_epoch(
-                train_loader, optimizer, scheduler, max_grad_norm
-            )
+            train_metrics = self.train_epoch(train_loader, optimizer, scheduler, max_grad_norm)
 
             # Validate
             val_metrics = self.evaluate(val_loader)
@@ -278,11 +277,13 @@ class GLUETrainer:
                 best_val_metric = current_metric
                 best_metrics = val_metrics.copy()
 
-            history.append({
-                "epoch": epoch + 1,
-                "train": train_metrics,
-                "val": val_metrics,
-            })
+            history.append(
+                {
+                    "epoch": epoch + 1,
+                    "train": train_metrics,
+                    "val": val_metrics,
+                }
+            )
 
         return {
             "best_val_metrics": best_metrics,
@@ -315,7 +316,7 @@ def run_task(
     use_wandb: bool = False,
     output_dir: str = "data/results",
     learning_rate: Optional[float] = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Run training and evaluation on a single GLUE task."""
     logger.info(f"Running {task_name} with {model_name}")
 
@@ -402,12 +403,12 @@ def run_task(
 
 def run_all_tasks(
     model_name: str,
-    tasks: Optional[List[str]] = None,
+    tasks: Optional[list[str]] = None,
     device: str = "cuda",
     use_wandb: bool = False,
     output_dir: str = "data/results",
     learning_rate: Optional[float] = None,
-) -> Dict[str, Dict[str, Any]]:
+) -> dict[str, dict[str, Any]]:
     """Run on multiple GLUE tasks."""
     if tasks is None:
         tasks = list_tasks()
@@ -435,7 +436,7 @@ def run_all_tasks(
     return all_results
 
 
-def print_results_summary(results: Dict[str, Dict], model_name: str):
+def print_results_summary(results: dict[str, dict], model_name: str):
     """Print a summary table of results."""
     print("\n" + "=" * 70)
     print(f"GLUE RESULTS - {model_name}")

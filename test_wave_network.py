@@ -1,8 +1,10 @@
 import unittest
+
 import torch
+
+from wave_attention import WaveAttention, WaveAttentionNetwork
 from wave_network import WaveNetwork
 from wave_network_deep import DeepWaveNetwork, WaveLayer
-from wave_attention import WaveAttention, WaveAttentionNetwork
 
 
 class TestWaveNetwork(unittest.TestCase):
@@ -39,10 +41,8 @@ class TestWaveNetwork(unittest.TestCase):
     def test_forward_pass_shape(self):
         """Test forward pass produces correct output shape"""
         for mode in ["modulation", "interference"]:
-            model = WaveNetwork(self.vocab_size, self.embedding_dim,
-                              self.num_classes, mode=mode)
-            input_ids = torch.randint(0, self.vocab_size,
-                                     (self.batch_size, self.seq_len))
+            model = WaveNetwork(self.vocab_size, self.embedding_dim, self.num_classes, mode=mode)
+            input_ids = torch.randint(0, self.vocab_size, (self.batch_size, self.seq_len))
             output = model(input_ids)
 
             expected_shape = (self.batch_size, self.num_classes)
@@ -51,8 +51,7 @@ class TestWaveNetwork(unittest.TestCase):
     def test_no_nan_inf(self):
         """Test that forward pass produces no NaN or Inf values"""
         model = WaveNetwork(self.vocab_size, self.embedding_dim, self.num_classes)
-        input_ids = torch.randint(0, self.vocab_size,
-                                 (self.batch_size, self.seq_len))
+        input_ids = torch.randint(0, self.vocab_size, (self.batch_size, self.seq_len))
         output = model(input_ids)
 
         self.assertFalse(torch.isnan(output).any())
@@ -61,8 +60,7 @@ class TestWaveNetwork(unittest.TestCase):
     def test_attention_mask(self):
         """Test attention mask functionality"""
         model = WaveNetwork(self.vocab_size, self.embedding_dim, self.num_classes)
-        input_ids = torch.randint(0, self.vocab_size,
-                                 (self.batch_size, self.seq_len))
+        input_ids = torch.randint(0, self.vocab_size, (self.batch_size, self.seq_len))
 
         # Test without mask
         output1 = model(input_ids, attention_mask=None)
@@ -76,7 +74,7 @@ class TestWaveNetwork(unittest.TestCase):
 
         # Test with partial mask
         mask_partial = torch.ones(self.batch_size, self.seq_len)
-        mask_partial[:, self.seq_len//2:] = 0  # Mask second half
+        mask_partial[:, self.seq_len // 2 :] = 0  # Mask second half
         output3 = model(input_ids, attention_mask=mask_partial)
 
         # Should be different from full sequence
@@ -84,13 +82,13 @@ class TestWaveNetwork(unittest.TestCase):
 
     def test_learnable_mode(self):
         """Test learnable mode mixing"""
-        model = WaveNetwork(self.vocab_size, self.embedding_dim, self.num_classes,
-                          learnable_mode=True)
-        input_ids = torch.randint(0, self.vocab_size,
-                                 (self.batch_size, self.seq_len))
+        model = WaveNetwork(
+            self.vocab_size, self.embedding_dim, self.num_classes, learnable_mode=True
+        )
+        input_ids = torch.randint(0, self.vocab_size, (self.batch_size, self.seq_len))
 
         # Should have mode_weight parameter
-        self.assertTrue(hasattr(model, 'mode_weight'))
+        self.assertTrue(hasattr(model, "mode_weight"))
 
         # Should produce valid output
         output = model(input_ids)
@@ -100,15 +98,13 @@ class TestWaveNetwork(unittest.TestCase):
     def test_epsilon_configurable(self):
         """Test that epsilon is configurable"""
         eps_custom = 1e-6
-        model = WaveNetwork(self.vocab_size, self.embedding_dim, self.num_classes,
-                          eps=eps_custom)
+        model = WaveNetwork(self.vocab_size, self.embedding_dim, self.num_classes, eps=eps_custom)
         self.assertEqual(model.eps, eps_custom)
 
     def test_backward_pass(self):
         """Test that gradients flow correctly"""
         model = WaveNetwork(self.vocab_size, self.embedding_dim, self.num_classes)
-        input_ids = torch.randint(0, self.vocab_size,
-                                 (self.batch_size, self.seq_len))
+        input_ids = torch.randint(0, self.vocab_size, (self.batch_size, self.seq_len))
 
         output = model(input_ids)
         loss = output.sum()
@@ -146,10 +142,10 @@ class TestDeepWaveNetwork(unittest.TestCase):
 
     def test_deep_network_forward(self):
         """Test forward pass through deep network"""
-        model = DeepWaveNetwork(self.vocab_size, self.embedding_dim,
-                               self.num_classes, num_layers=self.num_layers)
-        input_ids = torch.randint(0, self.vocab_size,
-                                 (self.batch_size, self.seq_len))
+        model = DeepWaveNetwork(
+            self.vocab_size, self.embedding_dim, self.num_classes, num_layers=self.num_layers
+        )
+        input_ids = torch.randint(0, self.vocab_size, (self.batch_size, self.seq_len))
 
         output = model(input_ids)
 
@@ -159,12 +155,12 @@ class TestDeepWaveNetwork(unittest.TestCase):
 
     def test_deep_network_with_mask(self):
         """Test deep network with attention mask"""
-        model = DeepWaveNetwork(self.vocab_size, self.embedding_dim,
-                               self.num_classes, num_layers=self.num_layers)
-        input_ids = torch.randint(0, self.vocab_size,
-                                 (self.batch_size, self.seq_len))
+        model = DeepWaveNetwork(
+            self.vocab_size, self.embedding_dim, self.num_classes, num_layers=self.num_layers
+        )
+        input_ids = torch.randint(0, self.vocab_size, (self.batch_size, self.seq_len))
         mask = torch.ones(self.batch_size, self.seq_len)
-        mask[:, self.seq_len//2:] = 0
+        mask[:, self.seq_len // 2 :] = 0
 
         output = model(input_ids, attention_mask=mask)
 
@@ -174,8 +170,9 @@ class TestDeepWaveNetwork(unittest.TestCase):
     def test_num_layers(self):
         """Test that correct number of layers are created"""
         for num_layers in [1, 3, 5]:
-            model = DeepWaveNetwork(self.vocab_size, self.embedding_dim,
-                                   self.num_classes, num_layers=num_layers)
+            model = DeepWaveNetwork(
+                self.vocab_size, self.embedding_dim, self.num_classes, num_layers=num_layers
+            )
             self.assertEqual(len(model.wave_layers), num_layers)
 
 
@@ -204,7 +201,7 @@ class TestWaveAttention(unittest.TestCase):
         attention = WaveAttention(self.embedding_dim, num_heads=self.num_heads)
         x = torch.randn(self.batch_size, self.seq_len, self.embedding_dim)
         mask = torch.ones(self.batch_size, self.seq_len)
-        mask[:, self.seq_len//2:] = 0
+        mask[:, self.seq_len // 2 :] = 0
 
         output = attention(x, attention_mask=mask)
 
@@ -225,12 +222,11 @@ class TestWaveAttention(unittest.TestCase):
         """Test wave attention network forward pass"""
         vocab_size = 1000
         num_classes = 4
-        model = WaveAttentionNetwork(vocab_size, self.embedding_dim,
-                                    num_classes, num_layers=2,
-                                    num_heads=self.num_heads)
+        model = WaveAttentionNetwork(
+            vocab_size, self.embedding_dim, num_classes, num_layers=2, num_heads=self.num_heads
+        )
 
-        input_ids = torch.randint(0, vocab_size,
-                                 (self.batch_size, self.seq_len))
+        input_ids = torch.randint(0, vocab_size, (self.batch_size, self.seq_len))
 
         output = model(input_ids)
 
@@ -254,8 +250,9 @@ class TestNumericalStability(unittest.TestCase):
         model = WaveNetwork(self.vocab_size, self.embedding_dim, self.num_classes)
 
         # Test with large vocab indices
-        input_ids = torch.randint(self.vocab_size - 10, self.vocab_size,
-                                 (self.batch_size, self.seq_len))
+        input_ids = torch.randint(
+            self.vocab_size - 10, self.vocab_size, (self.batch_size, self.seq_len)
+        )
 
         output = model(input_ids)
         self.assertFalse(torch.isnan(output).any())
@@ -264,8 +261,7 @@ class TestNumericalStability(unittest.TestCase):
     def test_zero_mask(self):
         """Test behavior with all-zero mask"""
         model = WaveNetwork(self.vocab_size, self.embedding_dim, self.num_classes)
-        input_ids = torch.randint(0, self.vocab_size,
-                                 (self.batch_size, self.seq_len))
+        input_ids = torch.randint(0, self.vocab_size, (self.batch_size, self.seq_len))
 
         # Create mask with at least one non-zero element to avoid division by zero
         mask = torch.zeros(self.batch_size, self.seq_len)
@@ -278,8 +274,7 @@ class TestNumericalStability(unittest.TestCase):
     def test_gradient_stability(self):
         """Test that gradients remain stable"""
         model = WaveNetwork(self.vocab_size, self.embedding_dim, self.num_classes)
-        input_ids = torch.randint(0, self.vocab_size,
-                                 (self.batch_size, self.seq_len))
+        input_ids = torch.randint(0, self.vocab_size, (self.batch_size, self.seq_len))
 
         output = model(input_ids)
         loss = output.sum()
@@ -288,11 +283,9 @@ class TestNumericalStability(unittest.TestCase):
         # Check all gradients for stability
         for name, param in model.named_parameters():
             if param.grad is not None:
-                self.assertFalse(torch.isnan(param.grad).any(),
-                               f"NaN gradient in {name}")
-                self.assertFalse(torch.isinf(param.grad).any(),
-                               f"Inf gradient in {name}")
+                self.assertFalse(torch.isnan(param.grad).any(), f"NaN gradient in {name}")
+                self.assertFalse(torch.isinf(param.grad).any(), f"Inf gradient in {name}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

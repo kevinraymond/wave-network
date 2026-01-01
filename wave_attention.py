@@ -21,8 +21,9 @@ class WaveAttention(nn.Module):
         >>> mask = torch.ones(2, 128)
         >>> output = attention(x, mask)  # (2, 128, 768)
     """
+
     def __init__(self, embedding_dim, num_heads=8, eps=1e-8):
-        super(WaveAttention, self).__init__()
+        super().__init__()
         self.embedding_dim = embedding_dim
         self.num_heads = num_heads
         self.head_dim = embedding_dim // num_heads
@@ -93,22 +94,19 @@ class WaveAttention(nn.Module):
         # Apply mask if provided
         if attention_mask is not None:
             attention_scores = attention_scores.masked_fill(
-                attention_mask.unsqueeze(1).unsqueeze(2) == 0,
-                float('-inf')
+                attention_mask.unsqueeze(1).unsqueeze(2) == 0, float("-inf")
             )
 
         # Softmax normalization
-        attention_probs = torch.softmax(attention_scores / torch.sqrt(
-            torch.tensor(self.head_dim, dtype=torch.float32)
-        ), dim=-1)
+        attention_probs = torch.softmax(
+            attention_scores / torch.sqrt(torch.tensor(self.head_dim, dtype=torch.float32)), dim=-1
+        )
 
         # Apply attention to values
         context = torch.matmul(attention_probs, V)
 
         # Reshape and project
-        context = context.transpose(1, 2).contiguous().view(
-            batch_size, seq_len, self.embedding_dim
-        )
+        context = context.transpose(1, 2).contiguous().view(batch_size, seq_len, self.embedding_dim)
         output = self.out(context)
 
         # Residual connection + layer norm
@@ -138,18 +136,19 @@ class WaveAttentionNetwork(nn.Module):
         >>> attention_mask = torch.ones(8, 128)
         >>> output = model(input_ids, attention_mask)  # (8, 2)
     """
-    def __init__(self, vocab_size, embedding_dim=768, num_classes=4,
-                 num_layers=2, num_heads=8, eps=1e-8):
-        super(WaveAttentionNetwork, self).__init__()
+
+    def __init__(
+        self, vocab_size, embedding_dim=768, num_classes=4, num_layers=2, num_heads=8, eps=1e-8
+    ):
+        super().__init__()
 
         self.embedding = nn.Embedding(vocab_size, embedding_dim)
         nn.init.uniform_(self.embedding.weight, -0.1, 0.1)
 
         # Stack of wave attention layers
-        self.attention_layers = nn.ModuleList([
-            WaveAttention(embedding_dim, num_heads=num_heads, eps=eps)
-            for _ in range(num_layers)
-        ])
+        self.attention_layers = nn.ModuleList(
+            [WaveAttention(embedding_dim, num_heads=num_heads, eps=eps) for _ in range(num_layers)]
+        )
 
         # Classifier
         self.classifier = nn.Linear(embedding_dim, num_classes)

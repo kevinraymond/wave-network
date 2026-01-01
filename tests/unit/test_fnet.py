@@ -1,15 +1,16 @@
 """Unit tests for FNet implementation."""
 
-import pytest
-import torch
 import sys
 from pathlib import Path
+
+import pytest
+import torch
 
 # Add project root to path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from models.fnet import FNet, FNetLite, FNetEncoderBlock, FourierMixing
+from models.fnet import FNet, FNetEncoderBlock, FNetLite, FourierMixing
 
 
 class TestFourierMixing:
@@ -102,7 +103,9 @@ class TestFNet:
             num_classes=config["num_classes"],
             num_layers=config["num_layers"],
         )
-        input_ids = torch.randint(0, config["vocab_size"], (config["batch_size"], config["seq_len"]))
+        input_ids = torch.randint(
+            0, config["vocab_size"], (config["batch_size"], config["seq_len"])
+        )
         output = model(input_ids)
 
         expected_shape = (config["batch_size"], config["num_classes"])
@@ -116,7 +119,9 @@ class TestFNet:
             num_classes=config["num_classes"],
             num_layers=config["num_layers"],
         )
-        input_ids = torch.randint(0, config["vocab_size"], (config["batch_size"], config["seq_len"]))
+        input_ids = torch.randint(
+            0, config["vocab_size"], (config["batch_size"], config["seq_len"])
+        )
         output = model(input_ids)
 
         assert not torch.isnan(output).any()
@@ -130,7 +135,9 @@ class TestFNet:
             num_classes=config["num_classes"],
             num_layers=config["num_layers"],
         )
-        input_ids = torch.randint(0, config["vocab_size"], (config["batch_size"], config["seq_len"]))
+        input_ids = torch.randint(
+            0, config["vocab_size"], (config["batch_size"], config["seq_len"])
+        )
 
         # Full mask
         mask_full = torch.ones(config["batch_size"], config["seq_len"])
@@ -138,7 +145,7 @@ class TestFNet:
 
         # Partial mask
         mask_partial = torch.ones(config["batch_size"], config["seq_len"])
-        mask_partial[:, config["seq_len"] // 2:] = 0
+        mask_partial[:, config["seq_len"] // 2 :] = 0
         output_partial = model(input_ids, attention_mask=mask_partial)
 
         # Outputs should differ due to different pooling
@@ -152,7 +159,9 @@ class TestFNet:
             num_classes=config["num_classes"],
             num_layers=config["num_layers"],
         )
-        input_ids = torch.randint(0, config["vocab_size"], (config["batch_size"], config["seq_len"]))
+        input_ids = torch.randint(
+            0, config["vocab_size"], (config["batch_size"], config["seq_len"])
+        )
 
         output = model(input_ids)
         loss = output.sum()
@@ -203,7 +212,9 @@ class TestFNetLite:
             num_classes=config["num_classes"],
             num_layers=config["num_layers"],
         )
-        input_ids = torch.randint(0, config["vocab_size"], (config["batch_size"], config["seq_len"]))
+        input_ids = torch.randint(
+            0, config["vocab_size"], (config["batch_size"], config["seq_len"])
+        )
         output = model(input_ids)
 
         expected_shape = (config["batch_size"], config["num_classes"])
@@ -260,7 +271,9 @@ class TestFNetVsWaveNetwork:
             num_classes=config["num_classes"],
         )
 
-        input_ids = torch.randint(0, config["vocab_size"], (config["batch_size"], config["seq_len"]))
+        input_ids = torch.randint(
+            0, config["vocab_size"], (config["batch_size"], config["seq_len"])
+        )
         mask = torch.ones(config["batch_size"], config["seq_len"])
 
         # Both should accept same inputs
@@ -290,7 +303,9 @@ class TestFNetVsWaveNetwork:
             num_classes=config["num_classes"],
         )
 
-        input_ids = torch.randint(0, config["vocab_size"], (config["batch_size"], config["seq_len"]))
+        input_ids = torch.randint(
+            0, config["vocab_size"], (config["batch_size"], config["seq_len"])
+        )
 
         fnet_out = fnet(input_ids)
         wave_out = wave(input_ids)

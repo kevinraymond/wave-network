@@ -10,9 +10,7 @@ class TestWaveNetwork:
     def test_global_semantics_shape(self, wave_network_model, small_config):
         """Test that global semantics has correct shape."""
         x = torch.randn(
-            small_config["batch_size"],
-            small_config["seq_len"],
-            small_config["embedding_dim"]
+            small_config["batch_size"], small_config["seq_len"], small_config["embedding_dim"]
         )
         g = wave_network_model.get_global_semantics_per_dim(x)
 
@@ -22,9 +20,7 @@ class TestWaveNetwork:
     def test_phase_unit_circle(self, wave_network_model, small_config):
         """Test that phase components satisfy unit circle constraint."""
         x = torch.randn(
-            small_config["batch_size"],
-            small_config["seq_len"],
-            small_config["embedding_dim"]
+            small_config["batch_size"], small_config["seq_len"], small_config["embedding_dim"]
         )
         g = wave_network_model.get_global_semantics_per_dim(x)
         sqrt_term, ratio = wave_network_model.get_phase_components(x, g)
@@ -41,11 +37,10 @@ class TestWaveNetwork:
             small_config["vocab_size"],
             small_config["embedding_dim"],
             small_config["num_classes"],
-            mode=wave_mode
+            mode=wave_mode,
         )
         input_ids = torch.randint(
-            0, small_config["vocab_size"],
-            (small_config["batch_size"], small_config["seq_len"])
+            0, small_config["vocab_size"], (small_config["batch_size"], small_config["seq_len"])
         )
         output = model(input_ids)
 
@@ -83,10 +78,10 @@ class TestWaveNetwork:
             small_config["vocab_size"],
             small_config["embedding_dim"],
             small_config["num_classes"],
-            learnable_mode=True
+            learnable_mode=True,
         )
 
-        assert hasattr(model, 'mode_weight')
+        assert hasattr(model, "mode_weight")
 
         output = model(sample_input)
         assert output.shape == (small_config["batch_size"], small_config["num_classes"])
@@ -101,7 +96,7 @@ class TestWaveNetwork:
             small_config["vocab_size"],
             small_config["embedding_dim"],
             small_config["num_classes"],
-            eps=eps_custom
+            eps=eps_custom,
         )
         assert model.eps == eps_custom
 
@@ -124,9 +119,7 @@ class TestDeepWaveNetwork:
 
         layer = WaveLayer(small_config["embedding_dim"])
         x = torch.randn(
-            small_config["batch_size"],
-            small_config["seq_len"],
-            small_config["embedding_dim"]
+            small_config["batch_size"], small_config["seq_len"], small_config["embedding_dim"]
         )
 
         output = layer(x)
@@ -142,7 +135,9 @@ class TestDeepWaveNetwork:
         assert output.shape == expected_shape
         assert not torch.isnan(output).any()
 
-    def test_deep_network_with_mask(self, deep_wave_network_model, sample_input, partial_mask, small_config):
+    def test_deep_network_with_mask(
+        self, deep_wave_network_model, sample_input, partial_mask, small_config
+    ):
         """Test deep network with attention mask."""
         output = deep_wave_network_model(sample_input, attention_mask=partial_mask)
 
@@ -158,7 +153,7 @@ class TestDeepWaveNetwork:
             small_config["vocab_size"],
             small_config["embedding_dim"],
             small_config["num_classes"],
-            num_layers=num_layers
+            num_layers=num_layers,
         )
         assert len(model.wave_layers) == num_layers
 
@@ -169,9 +164,7 @@ class TestWaveAttention:
     def test_attention_forward(self, wave_attention_model, small_config):
         """Test wave attention forward pass."""
         x = torch.randn(
-            small_config["batch_size"],
-            small_config["seq_len"],
-            small_config["embedding_dim"]
+            small_config["batch_size"], small_config["seq_len"], small_config["embedding_dim"]
         )
 
         output = wave_attention_model(x)
@@ -182,9 +175,7 @@ class TestWaveAttention:
     def test_attention_with_mask(self, wave_attention_model, small_config, partial_mask):
         """Test wave attention with masking."""
         x = torch.randn(
-            small_config["batch_size"],
-            small_config["seq_len"],
-            small_config["embedding_dim"]
+            small_config["batch_size"], small_config["seq_len"], small_config["embedding_dim"]
         )
 
         output = wave_attention_model(x, attention_mask=partial_mask)
@@ -208,9 +199,7 @@ class TestWaveAttention:
 
         attention = WaveAttention(small_config["embedding_dim"], num_heads=num_heads)
         x = torch.randn(
-            small_config["batch_size"],
-            small_config["seq_len"],
-            small_config["embedding_dim"]
+            small_config["batch_size"], small_config["seq_len"], small_config["embedding_dim"]
         )
 
         output = attention(x)
@@ -225,12 +214,11 @@ class TestWaveAttention:
             small_config["embedding_dim"],
             small_config["num_classes"],
             num_layers=2,
-            num_heads=8
+            num_heads=8,
         )
 
         input_ids = torch.randint(
-            0, small_config["vocab_size"],
-            (small_config["batch_size"], small_config["seq_len"])
+            0, small_config["vocab_size"], (small_config["batch_size"], small_config["seq_len"])
         )
 
         output = model(input_ids)
@@ -247,7 +235,7 @@ class TestNumericalStability:
         input_ids = torch.randint(
             small_config["vocab_size"] - 10,
             small_config["vocab_size"],
-            (small_config["batch_size"], small_config["seq_len"])
+            (small_config["batch_size"], small_config["seq_len"]),
         )
 
         output = wave_network_model(input_ids)
@@ -257,8 +245,7 @@ class TestNumericalStability:
     def test_minimal_mask(self, wave_network_model, small_config):
         """Test behavior with minimal mask (only first token)."""
         input_ids = torch.randint(
-            0, small_config["vocab_size"],
-            (small_config["batch_size"], small_config["seq_len"])
+            0, small_config["vocab_size"], (small_config["batch_size"], small_config["seq_len"])
         )
 
         mask = torch.zeros(small_config["batch_size"], small_config["seq_len"])

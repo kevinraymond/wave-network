@@ -5,24 +5,26 @@ Orchestrates running multiple experiments for ablation studies,
 handling seed management, W&B grouping, and results aggregation.
 """
 
-import torch
 import json
-import random
-import numpy as np
-from pathlib import Path
-from datetime import datetime
-from typing import List, Dict, Any, Optional
 import logging
+import random
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Optional
+
+import numpy as np
+import torch
 
 try:
     import wandb
+
     WANDB_AVAILABLE = True
 except ImportError:
     WANDB_AVAILABLE = False
 
 from experiments.config_manager import (
-    ExperimentConfig,
     AblationConfig,
+    ExperimentConfig,
     create_model_from_config,
 )
 
@@ -69,13 +71,13 @@ class AblationRunner:
         self.output_dir = Path(ablation_config.output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-        self.results: List[Dict[str, Any]] = []
+        self.results: list[dict[str, Any]] = []
 
     def run_single_experiment(
         self,
         exp_config: ExperimentConfig,
         data_loaders: dict,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Run a single experiment.
 
@@ -139,7 +141,7 @@ class AblationRunner:
         model: torch.nn.Module,
         config: ExperimentConfig,
         data_loaders: dict,
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """
         Train model and return metrics.
 
@@ -213,13 +215,15 @@ class AblationRunner:
 
             # Log to W&B
             if config.logging.use_wandb and WANDB_AVAILABLE:
-                wandb.log({
-                    "epoch": epoch,
-                    "train_loss": train_loss / len(data_loaders["train_loader"]),
-                    "train_acc": train_acc,
-                    "val_acc": val_acc,
-                    "val_f1": val_f1,
-                })
+                wandb.log(
+                    {
+                        "epoch": epoch,
+                        "train_loss": train_loss / len(data_loaders["train_loader"]),
+                        "train_acc": train_acc,
+                        "val_acc": val_acc,
+                        "val_f1": val_f1,
+                    }
+                )
 
             if val_acc > best_val_acc:
                 best_val_acc = val_acc
@@ -251,18 +255,20 @@ class AblationRunner:
                 test_labels, test_preds, average="weighted", zero_division=0
             )
 
-            metrics.update({
-                "test_acc": test_acc,
-                "test_precision": test_prec,
-                "test_recall": test_rec,
-                "test_f1": test_f1,
-            })
+            metrics.update(
+                {
+                    "test_acc": test_acc,
+                    "test_precision": test_prec,
+                    "test_recall": test_rec,
+                    "test_f1": test_f1,
+                }
+            )
 
             logger.info(f"  Test: acc={test_acc:.4f}, f1={test_f1:.4f}")
 
         return metrics
 
-    def run_all(self, data_loaders: dict) -> List[Dict[str, Any]]:
+    def run_all(self, data_loaders: dict) -> list[dict[str, Any]]:
         """
         Run all experiments in the ablation study.
 
@@ -285,7 +291,7 @@ class AblationRunner:
 
         return self.results
 
-    def _save_result(self, result: Dict[str, Any]) -> None:
+    def _save_result(self, result: dict[str, Any]) -> None:
         """Save individual result to JSON file."""
         filename = f"{result['name']}.json"
         filepath = self.output_dir / filename
@@ -371,7 +377,7 @@ def run_ablation_from_yaml(
     config_path: str,
     data_loaders: dict,
     device: Optional[str] = None,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """
     Convenience function to run ablation study from YAML config.
 
