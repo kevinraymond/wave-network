@@ -313,7 +313,7 @@ def run_task(
     model_name: str,
     device: str = "cuda",
     use_wandb: bool = False,
-    output_dir: str = "glue_results",
+    output_dir: str = "data/results",
     learning_rate: Optional[float] = None,
 ) -> Dict[str, Any]:
     """Run training and evaluation on a single GLUE task."""
@@ -405,7 +405,7 @@ def run_all_tasks(
     tasks: Optional[List[str]] = None,
     device: str = "cuda",
     use_wandb: bool = False,
-    output_dir: str = "glue_results",
+    output_dir: str = "data/results",
     learning_rate: Optional[float] = None,
 ) -> Dict[str, Dict[str, Any]]:
     """Run on multiple GLUE tasks."""
@@ -489,7 +489,7 @@ def main():
     parser.add_argument(
         "--output-dir",
         type=str,
-        default="glue_results",
+        default="data/results",
         help="Output directory for results",
     )
     parser.add_argument(
