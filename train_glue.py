@@ -140,6 +140,19 @@ class GLUETrainer:
 
             loss.backward()
 
+            # Check for NaN/Inf gradients
+            grad_ok = True
+            for name, param in self.model.named_parameters():
+                if param.grad is not None:
+                    if torch.isnan(param.grad).any() or torch.isinf(param.grad).any():
+                        logger.warning(f"Invalid gradient in {name}, skipping update")
+                        grad_ok = False
+                        break
+
+            if not grad_ok:
+                optimizer.zero_grad()
+                continue
+
             # Gradient clipping
             torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_grad_norm)
 
@@ -301,12 +314,18 @@ def run_task(
     device: str = "cuda",
     use_wandb: bool = False,
     output_dir: str = "glue_results",
+    learning_rate: Optional[float] = None,
 ) -> Dict[str, Any]:
     """Run training and evaluation on a single GLUE task."""
     logger.info(f"Running {task_name} with {model_name}")
 
     task = GLUE_TASKS[task_name]
-    params = TASK_HYPERPARAMS[task_name]
+    params = TASK_HYPERPARAMS[task_name].copy()
+
+    # Override learning rate if specified
+    if learning_rate is not None:
+        params["learning_rate"] = learning_rate
+        logger.info(f"Using custom learning rate: {learning_rate}")
 
     # Load tokenizer
     tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
@@ -387,6 +406,7 @@ def run_all_tasks(
     device: str = "cuda",
     use_wandb: bool = False,
     output_dir: str = "glue_results",
+    learning_rate: Optional[float] = None,
 ) -> Dict[str, Dict[str, Any]]:
     """Run on multiple GLUE tasks."""
     if tasks is None:
@@ -402,6 +422,7 @@ def run_all_tasks(
                 device=device,
                 use_wandb=use_wandb,
                 output_dir=output_dir,
+                learning_rate=learning_rate,
             )
             all_results[task_name] = results
         except Exception as e:
@@ -476,6 +497,12 @@ def main():
         action="store_true",
         help="List available tasks and exit",
     )
+    parser.add_argument(
+        "--lr",
+        type=float,
+        default=None,
+        help="Override learning rate (default: use task-specific)",
+    )
 
     args = parser.parse_args()
 
@@ -500,6 +527,7 @@ def main():
                 device=args.device,
                 use_wandb=args.wandb,
                 output_dir=args.output_dir,
+                learning_rate=args.lr,
             )
         else:
             run_all_tasks(
@@ -508,6 +536,7 @@ def main():
                 device=args.device,
                 use_wandb=args.wandb,
                 output_dir=args.output_dir,
+                learning_rate=args.lr,
             )
 
 
