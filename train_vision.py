@@ -17,14 +17,28 @@ Usage:
 import argparse
 import json
 import logging
+import random
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
+import numpy as np
 import torch
 import torch.nn as nn
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import CosineAnnealingLR
+
+
+def set_seed(seed: int):
+    """Set random seed for reproducibility."""
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
 
 try:
     import mlflow
@@ -44,6 +58,7 @@ from benchmarks.vision import (
 )
 from models.wave_vision import WaveVisionNetwork, create_wave_vision
 from models.wave_vision_2d import WaveVisionNetwork2D
+from models.wave_vision_hybrid import CNNWaveVision
 
 
 # Mixup helper functions
@@ -91,6 +106,7 @@ MODEL_REGISTRY = {
     "wave_vision_small": lambda **kwargs: create_wave_vision("wave_vision_small", **kwargs),
     "wave_vision_base": lambda **kwargs: create_wave_vision("wave_vision_base", **kwargs),
     "wave_vision_2d": WaveVisionNetwork2D,
+    "cnn_wave": CNNWaveVision,
 }
 
 # Model-specific default configs
@@ -109,6 +125,14 @@ MODEL_CONFIGS = {
         "num_layers": 3,
         "mode": "modulation",
         "dropout": 0.1,
+    },
+    "cnn_wave": {
+        "base_channels": 64,
+        "embedding_dim": 256,
+        "num_wave_layers": 2,
+        "mode": "modulation",
+        "dropout": 0.2,
+        "wave_dropout": 0.1,
     },
 }
 
@@ -353,8 +377,14 @@ def run_task(
     mixup_alpha: float = 0.2,
     label_smoothing: float = 0.0,
     experiment_name: Optional[str] = None,
+    seed: Optional[int] = None,
 ) -> dict[str, Any]:
     """Run training and evaluation on a single vision task."""
+    # Set seed for reproducibility
+    if seed is not None:
+        set_seed(seed)
+        logger.info(f"Using seed: {seed}")
+
     logger.info(f"Running {task_name} with {model_name}")
 
     task = VISION_TASKS[task_name]
@@ -406,6 +436,7 @@ def run_task(
             "model": model_name,
             "task": task_name,
             "num_params": num_params,
+            "seed": seed,
             "use_randaugment": use_randaugment,
             "use_mixup": use_mixup,
             "mixup_alpha": mixup_alpha,
@@ -436,6 +467,7 @@ def run_task(
     results["task"] = task_name
     results["model"] = model_name
     results["num_params"] = num_params
+    results["seed"] = seed
     results["timestamp"] = datetime.now().isoformat()
     results["hyperparams"] = params
     results["augmentation"] = {
@@ -449,7 +481,10 @@ def run_task(
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
 
-    result_file = output_path / f"{model_name}_{task_name}.json"
+    if seed is not None:
+        result_file = output_path / f"{model_name}_{task_name}_seed{seed}.json"
+    else:
+        result_file = output_path / f"{model_name}_{task_name}.json"
     with open(result_file, "w") as f:
         json.dump(results, f, indent=2, default=str)
 
@@ -568,6 +603,12 @@ def main():
         default=None,
         help="Override patch size (default: 4)",
     )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Random seed for reproducibility",
+    )
 
     args = parser.parse_args()
 
@@ -590,6 +631,7 @@ def main():
         mixup_alpha=args.mixup_alpha,
         label_smoothing=args.label_smoothing,
         experiment_name=args.experiment_name,
+        seed=args.seed,
     )
 
 

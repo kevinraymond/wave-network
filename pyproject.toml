@@ -126,6 +126,7 @@ select = [
 ignore = [
     "E501",  # line too long (handled by formatter)
     "B008",  # do not perform function calls in argument defaults
+    "N812",  # lowercase 'functional' imported as non-lowercase 'F' (PyTorch convention)
 ]
 
 [tool.ruff.lint.isort]
