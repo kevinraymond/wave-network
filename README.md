@@ -41,6 +41,12 @@ python train.py
 
 # Run GLUE benchmarks
 python train_glue.py --task sst2 --model wave_network
+
+# Train CNN-Wave on CIFAR-10
+python train_vision.py --task cifar10 --model cnn_wave --randaugment
+
+# Train CNN-Wave on CIFAR-100
+python train_vision.py --task cifar100 --model cnn_wave --randaugment
 ```
 
 ## Documentation
