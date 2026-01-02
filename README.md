@@ -4,6 +4,8 @@ Implementation of [Wave Network: An Ultra-Small Language Model](https://arxiv.or
 
 ## Results
 
+### Text Classification
+
 Wave Network achieves near-BERT accuracy with **4.5x fewer parameters**:
 
 | Dataset | Wave Network | BERT | Parameters |
@@ -14,7 +16,19 @@ Wave Network achieves near-BERT accuracy with **4.5x fewer parameters**:
 
 On GLUE benchmark, Wave Network wins 5/8 tasks vs FNet with half the parameters (24.6M vs 52.2M).
 
-See [docs/benchmarks.md](docs/benchmarks.md) for detailed results.
+### Image Classification
+
+CNN-Wave hybrid outperforms ViT with **4x fewer parameters**:
+
+| Model | CIFAR-10 | CIFAR-100 | Parameters |
+|-------|----------|-----------|------------|
+| CNN-Wave (ours) | **92.72%** | **71.93%** | 1.6M |
+| ViT-CIFAR | 90.92% | 66.54% | 6.3M |
+| Wave Vision 2D | 80.41% | 52.81% | 1.4M |
+
+The hybrid combines CNN local feature extraction with Wave's efficient global processing.
+
+See [docs/benchmarks.md](docs/benchmarks.md) and [docs/vision_results.md](docs/vision_results.md) for detailed results.
 
 ## Quick Start
 
@@ -32,6 +46,7 @@ python train_glue.py --task sst2 --model wave_network
 ## Documentation
 
 - [Benchmark Results](docs/benchmarks.md) - Detailed performance data
+- [Vision Results](docs/vision_results.md) - Image classification benchmarks
 - [Technical Analysis](docs/ANALYSIS.md) - Implementation review
 - [Improvements](docs/IMPROVEMENTS.md) - Roadmap and fixes
 - [Review Summary](docs/REVIEW_SUMMARY.md) - Executive summary
