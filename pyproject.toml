@@ -29,6 +29,8 @@ dependencies = [
     "transformers>=4.30",
     "wandb>=0.15",
     "pyyaml>=6.0",
+    "torchaudio>=2.8.0",
+    "torchcodec>=0.9.1",
 ]
 
 [project.optional-dependencies]
