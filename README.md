@@ -34,19 +34,19 @@ See [docs/benchmarks.md](docs/benchmarks.md) and [docs/vision_results.md](docs/v
 
 ```bash
 # Install dependencies
-pip install -r requirements.txt
+uv sync
 
 # Train on AG News
-python train.py
+uv run python train.py
 
 # Run GLUE benchmarks
-python train_glue.py --task sst2 --model wave_network
+uv run python train_glue.py --task sst2 --model wave_network
 
 # Train CNN-Wave on CIFAR-10
-python train_vision.py --task cifar10 --model cnn_wave --randaugment
+uv run python train_vision.py --task cifar10 --model cnn_wave --randaugment
 
 # Train CNN-Wave on CIFAR-100
-python train_vision.py --task cifar100 --model cnn_wave --randaugment
+uv run python train_vision.py --task cifar100 --model cnn_wave --randaugment
 ```
 
 ## Documentation
