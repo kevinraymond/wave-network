@@ -57,6 +57,16 @@ uv run python train_vision.py --task cifar100 --model cnn_wave --randaugment
 - [Improvements](docs/IMPROVEMENTS.md) - Roadmap and fixes
 - [Review Summary](docs/REVIEW_SUMMARY.md) - Executive summary
 
+## Development
+
+```bash
+# Install dev dependencies
+uv sync --dev
+
+# Set up pre-commit hooks
+pre-commit install
+```
+
 ## License
 
 MIT
