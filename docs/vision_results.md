@@ -44,22 +44,23 @@ Sources:
 
 ### CIFAR-10
 
-| Model | Params | Accuracy |
-|-------|--------|----------|
-| ViT small | ~6M | 80% |
-| ViT patch=2 | ~6M | 80% |
-| **Wave Vision 2D** | **1.38M** | **80.41%** |
-| ResNet18 | 11M | 93% |
+| Model | Params | Accuracy | Source |
+|-------|--------|----------|--------|
+| ViT-CIFAR (omihub777) | 6.3M | 90.92% | [repo](https://github.com/omihub777/ViT-CIFAR) |
+| ViT patch=4 (1000 epochs) | ~6M | 89% | [repo](https://github.com/kentaroy47/vision-transformers-cifar10) |
+| ViT small / patch=2 | ~6M | 80% | [repo](https://github.com/kentaroy47/vision-transformers-cifar10) |
+| **Wave Vision 2D** | **1.38M** | **80.41%** | this work |
+| ResNet18 | 11M | 93% | reference |
 
 ### CIFAR-100
 
-| Model | Params | Accuracy |
-|-------|--------|----------|
-| ViT patch=4 | ~6M | 52% |
-| **Wave Vision 2D** | **1.42M** | **52.81%** |
-| ResNet18+RandAug | 11M | 71% |
+| Model | Params | Accuracy | Source |
+|-------|--------|----------|--------|
+| ViT-CIFAR (omihub777) | 6.3M | 66.54% | [repo](https://github.com/omihub777/ViT-CIFAR) |
+| **Wave Vision 2D** | **1.42M** | **52.81%** | this work |
+| ResNet18+RandAug | 11M | 71% | reference |
 
-**Key insight**: Wave Vision matches ViT accuracy with ~4x fewer parameters. Both transformer-style architectures struggle vs CNNs on small datasets due to lack of inductive biases (locality, translation invariance). The 2D spatial operations give Wave Network CNN-like locality benefits.
+**Key insight**: Wave Vision 2D (80.41%) matches lower-end ViT benchmarks (~80%) with ~4x fewer parameters, but trails optimized ViT implementations (90.92%) by ~10%. Both transformer-style architectures struggle vs CNNs on small datasets due to lack of inductive biases (locality, translation invariance). The 2D spatial operations give Wave Network CNN-like locality benefits.
 
 ## Key Findings
 
