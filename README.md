@@ -1,5 +1,9 @@
 # Wave Network
 
+[![CI](https://github.com/kevinraymond/wave-network/actions/workflows/ci.yml/badge.svg)](https://github.com/kevinraymond/wave-network/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/kevinraymond/wave-network/branch/main/graph/badge.svg)](https://codecov.io/gh/kevinraymond/wave-network)
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+
 Implementation of [Wave Network: An Ultra-Small Language Model](https://arxiv.org/pdf/2411.02674) - a lightweight alternative to BERT using wave-based signal processing instead of attention.
 
 ## Results
