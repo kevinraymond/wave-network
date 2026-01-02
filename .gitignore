@@ -1,6 +1,9 @@
 # local stuff
 hf
 wandb
+data/
+mlflow.db
+mlruns/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
