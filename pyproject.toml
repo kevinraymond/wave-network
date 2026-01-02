@@ -50,6 +50,10 @@ glue = [
     "datasets>=2.14",
     "evaluate>=0.4",
 ]
+vision = [
+    "torchvision>=0.15",
+    "timm>=0.9",
+]
 ner = [
     "seqeval>=1.2",
 ]
@@ -57,7 +61,7 @@ seq2seq = [
     "sacrebleu>=2.3",
 ]
 all = [
-    "wave-network[dev,benchmark,glue,ner,seq2seq]",
+    "wave-network[dev,benchmark,glue,vision,ner,seq2seq]",
 ]
 
 [project.urls]

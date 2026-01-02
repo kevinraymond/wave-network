@@ -116,6 +116,47 @@ def wave_attention_model(small_config):
     )
 
 
+# Vision model fixtures
+@pytest.fixture
+def vision_config():
+    """Small vision model configuration for fast tests."""
+    return {
+        "image_size": 32,
+        "patch_size": 4,
+        "in_channels": 3,
+        "embedding_dim": 64,
+        "num_classes": 10,
+        "num_layers": 2,
+        "batch_size": 2,
+    }
+
+
+@pytest.fixture
+def sample_images(vision_config):
+    """Generate sample image tensors for testing."""
+    return torch.randn(
+        vision_config["batch_size"],
+        vision_config["in_channels"],
+        vision_config["image_size"],
+        vision_config["image_size"],
+    )
+
+
+@pytest.fixture
+def wave_vision_model(vision_config):
+    """Create a small WaveVisionNetwork for testing."""
+    from models.wave_vision import WaveVisionNetwork
+
+    return WaveVisionNetwork(
+        image_size=vision_config["image_size"],
+        patch_size=vision_config["patch_size"],
+        in_channels=vision_config["in_channels"],
+        embedding_dim=vision_config["embedding_dim"],
+        num_classes=vision_config["num_classes"],
+        num_layers=vision_config["num_layers"],
+    )
+
+
 def pytest_configure(config):
     """Configure pytest with custom markers."""
     config.addinivalue_line(
