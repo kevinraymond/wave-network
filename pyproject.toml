@@ -151,3 +151,8 @@ exclude = [
     "tests/",
     "experiments/",
 ]
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.3.0",
+]
