@@ -289,3 +289,358 @@ class TestImageSizes:
 
         assert output.shape == (2, 10)
         assert not torch.isnan(output).any()
+
+
+# ============================================================================
+# Tests for WaveVisionNetwork2D (wave_vision_2d.py)
+# ============================================================================
+
+
+class TestWaveLayer2D:
+    """Test suite for WaveLayer2D."""
+
+    def test_wave_layer_2d_shape(self, vision_config):
+        """Test that WaveLayer2D produces correct output shape."""
+        from models.wave_vision_2d import WaveLayer2D
+
+        grid_size = vision_config["image_size"] // vision_config["patch_size"]
+        layer = WaveLayer2D(
+            embedding_dim=vision_config["embedding_dim"],
+            grid_size=grid_size,
+        )
+
+        # Input: (batch, H*W + 1, dim) - includes CLS token
+        seq_len = grid_size * grid_size + 1
+        x = torch.randn(
+            vision_config["batch_size"],
+            seq_len,
+            vision_config["embedding_dim"],
+        )
+
+        output = layer(x)
+
+        assert output.shape == x.shape
+
+    def test_wave_layer_2d_no_nan(self, vision_config):
+        """Test that WaveLayer2D produces no NaN values."""
+        from models.wave_vision_2d import WaveLayer2D
+
+        grid_size = vision_config["image_size"] // vision_config["patch_size"]
+        layer = WaveLayer2D(
+            embedding_dim=vision_config["embedding_dim"],
+            grid_size=grid_size,
+        )
+
+        seq_len = grid_size * grid_size + 1
+        x = torch.randn(
+            vision_config["batch_size"],
+            seq_len,
+            vision_config["embedding_dim"],
+        )
+
+        output = layer(x)
+
+        assert not torch.isnan(output).any()
+        assert not torch.isinf(output).any()
+
+    @pytest.mark.parametrize("mode", ["modulation", "interference"])
+    def test_wave_layer_2d_modes(self, vision_config, mode):
+        """Test both wave modes work for WaveLayer2D."""
+        from models.wave_vision_2d import WaveLayer2D
+
+        grid_size = vision_config["image_size"] // vision_config["patch_size"]
+        layer = WaveLayer2D(
+            embedding_dim=vision_config["embedding_dim"],
+            grid_size=grid_size,
+            mode=mode,
+        )
+
+        seq_len = grid_size * grid_size + 1
+        x = torch.randn(
+            vision_config["batch_size"],
+            seq_len,
+            vision_config["embedding_dim"],
+        )
+
+        output = layer(x)
+
+        assert output.shape == x.shape
+        assert not torch.isnan(output).any()
+
+    def test_wave_layer_2d_gradient_flow(self, vision_config):
+        """Test that gradients flow through WaveLayer2D."""
+        from models.wave_vision_2d import WaveLayer2D
+
+        grid_size = vision_config["image_size"] // vision_config["patch_size"]
+        layer = WaveLayer2D(
+            embedding_dim=vision_config["embedding_dim"],
+            grid_size=grid_size,
+        )
+
+        seq_len = grid_size * grid_size + 1
+        x = torch.randn(
+            vision_config["batch_size"],
+            seq_len,
+            vision_config["embedding_dim"],
+            requires_grad=True,
+        )
+
+        output = layer(x)
+        loss = output.sum()
+        loss.backward()
+
+        assert x.grad is not None
+        assert not torch.isnan(x.grad).any()
+
+
+class TestWaveVisionNetwork2D:
+    """Test suite for WaveVisionNetwork2D."""
+
+    @pytest.fixture
+    def wave_vision_2d_model(self, vision_config):
+        """Create a WaveVisionNetwork2D for testing."""
+        from models.wave_vision_2d import WaveVisionNetwork2D
+
+        return WaveVisionNetwork2D(
+            image_size=vision_config["image_size"],
+            patch_size=vision_config["patch_size"],
+            in_channels=vision_config["in_channels"],
+            embedding_dim=vision_config["embedding_dim"],
+            num_classes=vision_config["num_classes"],
+            num_layers=vision_config["num_layers"],
+        )
+
+    def test_forward_pass_shape(self, wave_vision_2d_model, sample_images, vision_config):
+        """Test forward pass produces correct output shape."""
+        output = wave_vision_2d_model(sample_images)
+
+        expected_shape = (vision_config["batch_size"], vision_config["num_classes"])
+        assert output.shape == expected_shape
+
+    def test_no_nan_inf(self, wave_vision_2d_model, sample_images):
+        """Test that forward pass produces no NaN or Inf values."""
+        output = wave_vision_2d_model(sample_images)
+
+        assert not torch.isnan(output).any()
+        assert not torch.isinf(output).any()
+
+    def test_backward_pass(self, wave_vision_2d_model, sample_images):
+        """Test that gradients flow correctly."""
+        output = wave_vision_2d_model(sample_images)
+        loss = output.sum()
+        loss.backward()
+
+        assert wave_vision_2d_model.patch_embed.weight.grad is not None
+        assert not torch.isnan(wave_vision_2d_model.patch_embed.weight.grad).any()
+
+    @pytest.mark.parametrize("mode", ["modulation", "interference"])
+    def test_wave_modes(self, vision_config, mode):
+        """Test both wave operation modes work."""
+        from models.wave_vision_2d import WaveVisionNetwork2D
+
+        model = WaveVisionNetwork2D(
+            image_size=vision_config["image_size"],
+            patch_size=vision_config["patch_size"],
+            embedding_dim=vision_config["embedding_dim"],
+            num_classes=vision_config["num_classes"],
+            num_layers=vision_config["num_layers"],
+            mode=mode,
+        )
+
+        images = torch.randn(
+            vision_config["batch_size"],
+            vision_config["in_channels"],
+            vision_config["image_size"],
+            vision_config["image_size"],
+        )
+
+        output = model(images)
+        assert output.shape == (vision_config["batch_size"], vision_config["num_classes"])
+        assert not torch.isnan(output).any()
+
+    def test_invalid_patch_size(self):
+        """Test that invalid patch size raises error."""
+        from models.wave_vision_2d import WaveVisionNetwork2D
+
+        with pytest.raises(ValueError, match="must be divisible"):
+            WaveVisionNetwork2D(image_size=32, patch_size=5, num_classes=10)
+
+
+# ============================================================================
+# Tests for CNNWaveVision (wave_vision_hybrid.py)
+# ============================================================================
+
+
+class TestResBlock:
+    """Test suite for ResBlock."""
+
+    def test_resblock_same_channels(self):
+        """Test ResBlock with same input/output channels."""
+        from models.wave_vision_hybrid import ResBlock
+
+        block = ResBlock(64, 64)
+        x = torch.randn(2, 64, 16, 16)
+        output = block(x)
+
+        assert output.shape == x.shape
+        assert not torch.isnan(output).any()
+
+    def test_resblock_channel_expansion(self):
+        """Test ResBlock with channel expansion."""
+        from models.wave_vision_hybrid import ResBlock
+
+        block = ResBlock(64, 128, stride=2)
+        x = torch.randn(2, 64, 16, 16)
+        output = block(x)
+
+        assert output.shape == (2, 128, 8, 8)
+        assert not torch.isnan(output).any()
+
+    def test_resblock_gradient_flow(self):
+        """Test that gradients flow through ResBlock."""
+        from models.wave_vision_hybrid import ResBlock
+
+        block = ResBlock(64, 64)
+        x = torch.randn(2, 64, 16, 16, requires_grad=True)
+        output = block(x)
+        loss = output.sum()
+        loss.backward()
+
+        assert x.grad is not None
+        assert not torch.isnan(x.grad).any()
+
+
+class TestCNNStem:
+    """Test suite for CNNStem."""
+
+    def test_cnn_stem_output_shape(self):
+        """Test CNNStem produces correct output shape."""
+        from models.wave_vision_hybrid import CNNStem
+
+        stem = CNNStem(in_channels=3, base_channels=64)
+        x = torch.randn(2, 3, 32, 32)
+        output = stem(x)
+
+        # 32x32 -> 16x16 -> 8x8, channels: 3 -> 64 -> 128 -> 256
+        assert output.shape == (2, 256, 8, 8)
+
+    def test_cnn_stem_no_nan(self):
+        """Test CNNStem produces no NaN values."""
+        from models.wave_vision_hybrid import CNNStem
+
+        stem = CNNStem()
+        x = torch.randn(2, 3, 32, 32)
+        output = stem(x)
+
+        assert not torch.isnan(output).any()
+        assert not torch.isinf(output).any()
+
+
+class TestCNNWaveVision:
+    """Test suite for CNNWaveVision hybrid model."""
+
+    @pytest.fixture
+    def cnn_wave_model(self, vision_config):
+        """Create a CNNWaveVision for testing."""
+        from models.wave_vision_hybrid import CNNWaveVision
+
+        return CNNWaveVision(
+            image_size=vision_config["image_size"],
+            in_channels=vision_config["in_channels"],
+            num_classes=vision_config["num_classes"],
+            base_channels=32,  # Smaller for faster tests
+            embedding_dim=vision_config["embedding_dim"],
+            num_wave_layers=vision_config["num_layers"],
+        )
+
+    def test_forward_pass_shape(self, cnn_wave_model, sample_images, vision_config):
+        """Test forward pass produces correct output shape."""
+        output = cnn_wave_model(sample_images)
+
+        expected_shape = (vision_config["batch_size"], vision_config["num_classes"])
+        assert output.shape == expected_shape
+
+    def test_no_nan_inf(self, cnn_wave_model, sample_images):
+        """Test that forward pass produces no NaN or Inf values."""
+        output = cnn_wave_model(sample_images)
+
+        assert not torch.isnan(output).any()
+        assert not torch.isinf(output).any()
+
+    def test_backward_pass(self, cnn_wave_model, sample_images):
+        """Test that gradients flow correctly."""
+        output = cnn_wave_model(sample_images)
+        loss = output.sum()
+        loss.backward()
+
+        # Check CNN stem gradients
+        assert cnn_wave_model.stem.conv1.weight.grad is not None
+        assert not torch.isnan(cnn_wave_model.stem.conv1.weight.grad).any()
+
+    @pytest.mark.parametrize("mode", ["modulation", "interference"])
+    def test_wave_modes(self, vision_config, mode):
+        """Test both wave operation modes work."""
+        from models.wave_vision_hybrid import CNNWaveVision
+
+        model = CNNWaveVision(
+            image_size=vision_config["image_size"],
+            num_classes=vision_config["num_classes"],
+            base_channels=32,
+            num_wave_layers=2,
+            mode=mode,
+        )
+
+        images = torch.randn(
+            vision_config["batch_size"],
+            vision_config["in_channels"],
+            vision_config["image_size"],
+            vision_config["image_size"],
+        )
+
+        output = model(images)
+        assert output.shape == (vision_config["batch_size"], vision_config["num_classes"])
+        assert not torch.isnan(output).any()
+
+    def test_count_parameters(self, cnn_wave_model):
+        """Test parameter counting method."""
+        param_count = cnn_wave_model.count_parameters()
+        assert param_count > 0
+        assert isinstance(param_count, int)
+
+    def test_get_config(self, cnn_wave_model, vision_config):
+        """Test config retrieval method."""
+        config = cnn_wave_model.get_config()
+
+        assert config["image_size"] == vision_config["image_size"]
+        assert "num_wave_layers" in config
+        assert "num_parameters" in config
+
+    def test_extreme_values(self, cnn_wave_model, vision_config):
+        """Test behavior with extreme pixel values."""
+        # Very bright images
+        images_bright = (
+            torch.ones(
+                vision_config["batch_size"],
+                vision_config["in_channels"],
+                vision_config["image_size"],
+                vision_config["image_size"],
+            )
+            * 10
+        )
+
+        output = cnn_wave_model(images_bright)
+        assert not torch.isnan(output).any()
+        assert not torch.isinf(output).any()
+
+    def test_zero_images(self, cnn_wave_model, vision_config):
+        """Test behavior with all-zero images."""
+        images_zero = torch.zeros(
+            vision_config["batch_size"],
+            vision_config["in_channels"],
+            vision_config["image_size"],
+            vision_config["image_size"],
+        )
+
+        output = cnn_wave_model(images_zero)
+        assert not torch.isnan(output).any()
+        assert not torch.isinf(output).any()
