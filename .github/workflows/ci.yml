@@ -57,7 +57,7 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          pytest tests/ -v --cov=models --cov=benchmarks --cov-report=xml --cov-report=term-missing --cov-fail-under=70
+          pytest tests/ -v --cov=models --cov=benchmarks --cov=wave_network --cov=wave_network_deep --cov=wave_attention --cov-report=xml --cov-report=term-missing --cov-fail-under=70
 
       - name: Upload coverage to Codecov
         if: matrix.python-version == '3.10'

@@ -89,11 +89,20 @@ filterwarnings = [
 
 # Coverage configuration
 [tool.coverage.run]
-source = ["models", "benchmarks"]
+source = [
+    "models",
+    "benchmarks",
+    "wave_network",
+    "wave_network_deep",
+    "wave_attention",
+]
 omit = [
     "tests/*",
     "experiments/*",
     "scripts/*",
+    "train*.py",
+    "diagnostic.py",
+    "prepare_dataset.py",
 ]
 branch = true
 
