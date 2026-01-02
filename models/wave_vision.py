@@ -14,12 +14,12 @@ References:
 - Vision Transformer: https://arxiv.org/abs/2010.11929
 """
 
-import torch
-import torch.nn as nn
-
 # Import WaveLayer from the deep wave network module
 import sys
 from pathlib import Path
+
+import torch
+import torch.nn as nn
 
 # Add parent directory to path for importing wave_network_deep
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -265,8 +265,7 @@ def create_wave_vision(
     """
     if config_name not in WAVE_VISION_CONFIGS:
         raise ValueError(
-            f"Unknown config: {config_name}. "
-            f"Available: {list(WAVE_VISION_CONFIGS.keys())}"
+            f"Unknown config: {config_name}. " f"Available: {list(WAVE_VISION_CONFIGS.keys())}"
         )
 
     config = WAVE_VISION_CONFIGS[config_name].copy()

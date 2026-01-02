@@ -78,7 +78,10 @@ class TestWavePatchEmbedding:
         # CLS token should be the same for all samples in batch (before position embedding)
         # After position embedding, they should have position 0 encoding added
         # Just verify the shape is correct
-        assert output[:, 0, :].shape == (vision_config["batch_size"], vision_config["embedding_dim"])
+        assert output[:, 0, :].shape == (
+            vision_config["batch_size"],
+            vision_config["embedding_dim"],
+        )
 
 
 class TestWaveVisionNetwork:
@@ -218,12 +221,15 @@ class TestNumericalStability:
     def test_extreme_pixel_values(self, wave_vision_model, vision_config):
         """Test behavior with extreme pixel values."""
         # Very bright images
-        images_bright = torch.ones(
-            vision_config["batch_size"],
-            vision_config["in_channels"],
-            vision_config["image_size"],
-            vision_config["image_size"],
-        ) * 10
+        images_bright = (
+            torch.ones(
+                vision_config["batch_size"],
+                vision_config["in_channels"],
+                vision_config["image_size"],
+                vision_config["image_size"],
+            )
+            * 10
+        )
 
         output = wave_vision_model(images_bright)
         assert not torch.isnan(output).any()
@@ -260,10 +266,10 @@ class TestImageSizes:
     @pytest.mark.parametrize(
         "image_size,patch_size",
         [
-            (32, 4),   # CIFAR: 64 patches
-            (32, 8),   # CIFAR: 16 patches
-            (224, 16), # ImageNet: 196 patches
-            (224, 32), # ImageNet: 49 patches
+            (32, 4),  # CIFAR: 64 patches
+            (32, 8),  # CIFAR: 16 patches
+            (224, 16),  # ImageNet: 196 patches
+            (224, 32),  # ImageNet: 49 patches
         ],
     )
     def test_various_sizes(self, image_size, patch_size):

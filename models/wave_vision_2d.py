@@ -178,19 +178,16 @@ class WaveLayer2D(nn.Module):
         h, w = self.grid_size, self.grid_size
         dim = x.shape[-1]
 
-        # Reshape to (batch, dim, H, W) for spatial operations
-        x_2d = x.view(batch_size, h, w, dim).permute(0, 3, 1, 2)
-
         # Project
         z = self.proj_local(x.view(batch_size, h, w, dim))
         z_2d = z.permute(0, 3, 1, 2)  # (batch, dim, H, W)
 
         # Pad for 3x3 neighborhood
-        z_padded = F.pad(z_2d, (1, 1, 1, 1), mode='replicate')
+        z_padded = F.pad(z_2d, (1, 1, 1, 1), mode="replicate")
 
         # Compute local global semantics using avg pool
         # This gives us the "local magnitude" for each 3x3 region
-        local_squared = z_padded ** 2
+        local_squared = z_padded**2
         local_sum = F.avg_pool2d(local_squared, kernel_size=3, stride=1, padding=0)
         local_g = torch.sqrt(local_sum * 9 + self.eps)  # *9 to undo avg
 
@@ -293,7 +290,7 @@ class WaveVisionNetwork2D(nn.Module):
         self.image_size = image_size
         self.patch_size = patch_size
         self.grid_size = image_size // patch_size
-        self.num_patches = self.grid_size ** 2
+        self.num_patches = self.grid_size**2
         self.embedding_dim = embedding_dim
 
         # Patch embedding (same as before)
@@ -311,10 +308,12 @@ class WaveVisionNetwork2D(nn.Module):
         nn.init.uniform_(self.cls_token, -0.1, 0.1)
 
         # 2D-aware wave layers
-        self.wave_layers = nn.ModuleList([
-            WaveLayer2D(embedding_dim, self.grid_size, mode=mode, eps=eps)
-            for _ in range(num_layers)
-        ])
+        self.wave_layers = nn.ModuleList(
+            [
+                WaveLayer2D(embedding_dim, self.grid_size, mode=mode, eps=eps)
+                for _ in range(num_layers)
+            ]
+        )
 
         # Classification head
         self.norm = nn.LayerNorm(embedding_dim)
@@ -337,8 +336,10 @@ class WaveVisionNetwork2D(nn.Module):
         x = x.reshape(
             batch_size,
             x.shape[1],
-            self.grid_size, self.patch_size,
-            self.grid_size, self.patch_size,
+            self.grid_size,
+            self.patch_size,
+            self.grid_size,
+            self.patch_size,
         )
         x = x.permute(0, 2, 4, 1, 3, 5)
         x = x.reshape(batch_size, self.num_patches, -1)

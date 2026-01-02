@@ -115,21 +115,23 @@ def get_transforms(
 
     if train and augment:
         # Training augmentations
-        transform_list.extend([
-            transforms.RandomCrop(task.image_size, padding=4),
-            transforms.RandomHorizontalFlip(),
-        ])
+        transform_list.extend(
+            [
+                transforms.RandomCrop(task.image_size, padding=4),
+                transforms.RandomHorizontalFlip(),
+            ]
+        )
 
         # Add RandAugment if requested
         if use_randaugment:
-            transform_list.append(
-                transforms.RandAugment(num_ops=2, magnitude=9)
-            )
+            transform_list.append(transforms.RandAugment(num_ops=2, magnitude=9))
 
-    transform_list.extend([
-        transforms.ToTensor(),
-        transforms.Normalize(task.mean, task.std),
-    ])
+    transform_list.extend(
+        [
+            transforms.ToTensor(),
+            transforms.Normalize(task.mean, task.std),
+        ]
+    )
 
     return transforms.Compose(transform_list)
 
@@ -157,9 +159,7 @@ class VisionDataset(Dataset):
             raise ImportError("Please install torchvision: pip install torchvision")
 
         if task_name not in VISION_TASKS:
-            raise ValueError(
-                f"Unknown task: {task_name}. Available: {list(VISION_TASKS.keys())}"
-            )
+            raise ValueError(f"Unknown task: {task_name}. Available: {list(VISION_TASKS.keys())}")
 
         self.task = VISION_TASKS[task_name]
         self.task_name = task_name
@@ -225,9 +225,7 @@ def load_vision_task(
         Dictionary with 'train_loader', 'test_loader', 'task'
     """
     if task_name not in VISION_TASKS:
-        raise ValueError(
-            f"Unknown task: {task_name}. Available: {list(VISION_TASKS.keys())}"
-        )
+        raise ValueError(f"Unknown task: {task_name}. Available: {list(VISION_TASKS.keys())}")
 
     task = VISION_TASKS[task_name]
     params = TASK_HYPERPARAMS[task_name]
@@ -352,9 +350,7 @@ def get_task_info(task_name: str) -> dict[str, Any]:
         Dictionary with task information
     """
     if task_name not in VISION_TASKS:
-        raise ValueError(
-            f"Unknown task: {task_name}. Available: {list(VISION_TASKS.keys())}"
-        )
+        raise ValueError(f"Unknown task: {task_name}. Available: {list(VISION_TASKS.keys())}")
 
     task = VISION_TASKS[task_name]
     params = TASK_HYPERPARAMS[task_name]
@@ -386,6 +382,8 @@ def print_task_summary():
 
     for name, task in VISION_TASKS.items():
         metrics_str = ", ".join(task.metric_names)
-        print(f"{name:<12} {task.num_classes:<10} {task.image_size}x{task.image_size:<4} {metrics_str}")
+        print(
+            f"{name:<12} {task.num_classes:<10} {task.image_size}x{task.image_size:<4} {metrics_str}"
+        )
 
     print("=" * 70 + "\n")

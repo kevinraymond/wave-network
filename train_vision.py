@@ -40,6 +40,7 @@ def set_seed(seed: int):
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
 
+
 try:
     import mlflow
     import mlflow.pytorch
@@ -48,17 +49,16 @@ try:
 except ImportError:
     MLFLOW_AVAILABLE = False
 
-from benchmarks.vision import (
-    VISION_TASKS,
+from benchmarks.vision import (  # noqa: E402
     TASK_HYPERPARAMS,
+    VISION_TASKS,
     VisionMetrics,
-    list_tasks,
     load_vision_task,
     print_task_summary,
 )
-from models.wave_vision import WaveVisionNetwork, create_wave_vision
-from models.wave_vision_2d import WaveVisionNetwork2D
-from models.wave_vision_hybrid import CNNWaveVision
+from models.wave_vision import WaveVisionNetwork, create_wave_vision  # noqa: E402
+from models.wave_vision_2d import WaveVisionNetwork2D  # noqa: E402
+from models.wave_vision_hybrid import CNNWaveVision  # noqa: E402
 
 
 # Mixup helper functions
@@ -180,10 +180,8 @@ class VisionTrainer:
             optimizer.zero_grad()
 
             # Apply mixup if enabled
-            if getattr(self, 'use_mixup', False):
-                images, labels_a, labels_b, lam = mixup_data(
-                    images, labels, self.mixup_alpha
-                )
+            if getattr(self, "use_mixup", False):
+                images, labels_a, labels_b, lam = mixup_data(images, labels, self.mixup_alpha)
                 logits = self.model(images)
                 loss = mixup_criterion(self.criterion, logits, labels_a, labels_b, lam)
             else:
@@ -287,9 +285,7 @@ class VisionTrainer:
 
         for epoch in range(num_epochs):
             # Train
-            train_metrics = self.train_epoch(
-                train_loader, optimizer, scheduler, max_grad_norm
-            )
+            train_metrics = self.train_epoch(train_loader, optimizer, scheduler, max_grad_norm)
 
             # Evaluate
             val_metrics = self.evaluate(test_loader)
@@ -308,11 +304,14 @@ class VisionTrainer:
 
             # MLflow logging
             if self.use_mlflow:
-                mlflow.log_metrics({
-                    "train_loss": train_metrics["loss"],
-                    "test_loss": val_metrics["loss"],
-                    "learning_rate": current_lr,
-                }, step=epoch + 1)
+                mlflow.log_metrics(
+                    {
+                        "train_loss": train_metrics["loss"],
+                        "test_loss": val_metrics["loss"],
+                        "learning_rate": current_lr,
+                    },
+                    step=epoch + 1,
+                )
                 for k, v in val_metrics.items():
                     if k != "loss":
                         mlflow.log_metric(f"test_{k}", v, step=epoch + 1)
@@ -345,9 +344,7 @@ def create_model(
 ) -> nn.Module:
     """Create a model instance."""
     if model_name not in MODEL_REGISTRY:
-        raise ValueError(
-            f"Unknown model: {model_name}. Available: {list(MODEL_REGISTRY.keys())}"
-        )
+        raise ValueError(f"Unknown model: {model_name}. Available: {list(MODEL_REGISTRY.keys())}")
 
     task = VISION_TASKS[task_name]
     params = TASK_HYPERPARAMS[task_name]
@@ -387,7 +384,6 @@ def run_task(
 
     logger.info(f"Running {task_name} with {model_name}")
 
-    task = VISION_TASKS[task_name]
     params = TASK_HYPERPARAMS[task_name].copy()
 
     # Override hyperparameters if specified
@@ -432,17 +428,19 @@ def run_task(
     if use_mlflow and MLFLOW_AVAILABLE:
         mlflow.set_experiment(experiment_name or "wave-vision")
         mlflow.start_run(run_name=f"{model_name}_{task_name}")
-        mlflow.log_params({
-            "model": model_name,
-            "task": task_name,
-            "num_params": num_params,
-            "seed": seed,
-            "use_randaugment": use_randaugment,
-            "use_mixup": use_mixup,
-            "mixup_alpha": mixup_alpha,
-            "label_smoothing": label_smoothing,
-            **params,
-        })
+        mlflow.log_params(
+            {
+                "model": model_name,
+                "task": task_name,
+                "num_params": num_params,
+                "seed": seed,
+                "use_randaugment": use_randaugment,
+                "use_mixup": use_mixup,
+                "mixup_alpha": mixup_alpha,
+                "label_smoothing": label_smoothing,
+                **params,
+            }
+        )
 
     # Train
     trainer = VisionTrainer(
@@ -507,7 +505,7 @@ def print_result_summary(results: dict[str, Any]):
     print(f"RESULTS - {results['model']} on {results['task']}")
     print("=" * 60)
     print(f"Parameters: {results['num_params']:,}")
-    print(f"Best Test Metrics:")
+    print("Best Test Metrics:")
     for k, v in results["best_test_metrics"].items():
         if isinstance(v, float):
             print(f"  {k}: {v:.4f}")
