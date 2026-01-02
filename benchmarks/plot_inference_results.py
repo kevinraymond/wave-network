@@ -18,8 +18,8 @@ def load_results(filepath: str) -> list[dict]:
         return json.load(f)
 
 
-def plot_latency_scaling(results: list[dict], output_dir: Path):
-    """Plot latency vs sequence length for each device."""
+def plot_throughput_scaling(results: list[dict], output_dir: Path):
+    """Plot throughput vs sequence length for each device (higher is better)."""
     devices = sorted({r["device"] for r in results})
     batch_sizes = sorted({r["batch_size"] for r in results})
     models = ["WaveNetwork", "FNet", "Transformer"]
@@ -41,11 +41,14 @@ def plot_latency_scaling(results: list[dict], output_dir: Path):
                     and r["model_name"] == model
                 ]
                 if data:
-                    seq_lens = [d["seq_len"] for d in data]
-                    latencies = [d["latency_ms"] for d in data]
+                    seq_lens = [d["seq_len"] for d in sorted(data, key=lambda x: x["seq_len"])]
+                    throughputs = [
+                        d["throughput_tokens_per_sec"] / 1e6
+                        for d in sorted(data, key=lambda x: x["seq_len"])
+                    ]
                     ax.plot(
                         seq_lens,
-                        latencies,
+                        throughputs,
                         marker=markers[model],
                         color=colors[model],
                         label=model,
@@ -54,7 +57,7 @@ def plot_latency_scaling(results: list[dict], output_dir: Path):
                     )
 
             ax.set_xlabel("Sequence Length")
-            ax.set_ylabel("Latency (ms)")
+            ax.set_ylabel("Throughput (M tokens/sec) ↑")
             ax.set_title(f"Batch Size = {batch_size}")
             ax.set_xscale("log", base=2)
             ax.set_yscale("log")
@@ -63,12 +66,16 @@ def plot_latency_scaling(results: list[dict], output_dir: Path):
 
         device_name = device.replace(":", "_")
         fig.suptitle(
-            f"Inference Latency Scaling ({device.upper()})", fontsize=14, fontweight="bold"
+            f"Throughput Scaling ({device.upper()}) — Higher is Better",
+            fontsize=14,
+            fontweight="bold",
         )
         plt.tight_layout()
-        plt.savefig(output_dir / f"latency_scaling_{device_name}.png", dpi=150, bbox_inches="tight")
+        plt.savefig(
+            output_dir / f"throughput_scaling_{device_name}.png", dpi=150, bbox_inches="tight"
+        )
         plt.close()
-        print(f"Saved: latency_scaling_{device_name}.png")
+        print(f"Saved: throughput_scaling_{device_name}.png")
 
 
 def plot_speedup(results: list[dict], output_dir: Path):
@@ -139,8 +146,8 @@ def plot_speedup(results: list[dict], output_dir: Path):
             )
 
         ax.set_xlabel("Sequence Length")
-        ax.set_ylabel("Speedup vs Transformer")
-        ax.set_title(f"Speedup vs Transformer ({device.upper()})")
+        ax.set_ylabel("Speedup vs Transformer ↑")
+        ax.set_title(f"Speedup vs Transformer ({device.upper()}) — Higher is Better")
         ax.set_xticks(x)
         ax.set_xticklabels(seq_lens)
         ax.legend(loc="upper left", fontsize=8)
@@ -152,52 +159,6 @@ def plot_speedup(results: list[dict], output_dir: Path):
         plt.savefig(output_dir / f"speedup_{device_name}.png", dpi=150, bbox_inches="tight")
         plt.close()
         print(f"Saved: speedup_{device_name}.png")
-
-
-def plot_throughput_comparison(results: list[dict], output_dir: Path):
-    """Plot throughput comparison."""
-    devices = sorted({r["device"] for r in results})
-    models = ["WaveNetwork", "FNet", "Transformer"]
-    colors = {"WaveNetwork": "#2ecc71", "FNet": "#3498db", "Transformer": "#e74c3c"}
-
-    # Use batch_size=8 as representative
-    batch_size = 8
-
-    fig, axes = plt.subplots(1, len(devices), figsize=(6 * len(devices), 5))
-    if len(devices) == 1:
-        axes = [axes]
-
-    for ax, device in zip(axes, devices):
-        for model in models:
-            data = [
-                r
-                for r in results
-                if r["device"] == device
-                and r["batch_size"] == batch_size
-                and r["model_name"] == model
-            ]
-            if data:
-                seq_lens = [d["seq_len"] for d in sorted(data, key=lambda x: x["seq_len"])]
-                throughputs = [
-                    d["throughput_tokens_per_sec"] / 1e6
-                    for d in sorted(data, key=lambda x: x["seq_len"])
-                ]
-                ax.plot(
-                    seq_lens, throughputs, marker="o", color=colors[model], label=model, linewidth=2
-                )
-
-        ax.set_xlabel("Sequence Length")
-        ax.set_ylabel("Throughput (M tokens/sec)")
-        ax.set_title(f"{device.upper()} (batch={batch_size})")
-        ax.set_xscale("log", base=2)
-        ax.legend()
-        ax.grid(True, alpha=0.3)
-
-    fig.suptitle("Throughput Comparison", fontsize=14, fontweight="bold")
-    plt.tight_layout()
-    plt.savefig(output_dir / "throughput_comparison.png", dpi=150, bbox_inches="tight")
-    plt.close()
-    print("Saved: throughput_comparison.png")
 
 
 def main():
@@ -222,9 +183,8 @@ def main():
     results = load_results(args.input)
     print(f"Loaded {len(results)} results")
 
-    plot_latency_scaling(results, output_dir)
+    plot_throughput_scaling(results, output_dir)
     plot_speedup(results, output_dir)
-    plot_throughput_comparison(results, output_dir)
 
     print(f"\nAll plots saved to {output_dir}")
 
