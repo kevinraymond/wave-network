@@ -14,8 +14,10 @@ References:
 - TinyImageNet: https://tiny-imagenet.herokuapp.com/
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 import torch
 from torch.utils.data import DataLoader, Dataset
@@ -204,7 +206,7 @@ class VisionDataset(Dataset):
 
 def load_vision_task(
     task_name: str,
-    batch_size: Optional[int] = None,
+    batch_size: int | None = None,
     num_workers: int = 4,
     root: str = "./data",
     augment: bool = True,
@@ -280,7 +282,7 @@ class VisionMetrics:
         self,
         predictions: list[int],
         references: list[int],
-        probabilities: Optional[list[list[float]]] = None,
+        probabilities: list[list[float]] | None = None,
     ) -> dict[str, float]:
         """
         Compute metrics for predictions.
@@ -315,7 +317,7 @@ class VisionMetrics:
         self,
         predictions: list[int],
         references: list[int],
-        probabilities: Optional[list[list[float]]] = None,
+        probabilities: list[list[float]] | None = None,
     ) -> dict[str, float]:
         """Fallback metric computation without sklearn."""
         results = {}
