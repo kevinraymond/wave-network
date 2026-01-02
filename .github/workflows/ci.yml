@@ -59,12 +59,10 @@ jobs:
         run: |
           pytest tests/ -v --cov=models --cov=benchmarks --cov=wave_network --cov=wave_network_deep --cov=wave_attention --cov-report=xml --cov-report=term-missing --cov-fail-under=70
 
-      - name: Upload coverage to Codecov
+      - name: Upload coverage reports to Codecov
         if: matrix.python-version == '3.10'
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
-          file: ./coverage.xml
-          fail_ci_if_error: false
           token: ${{ secrets.CODECOV_TOKEN }}
 
   type-check:
