@@ -39,12 +39,16 @@ Wave Network with STFT input achieves **92.9% accuracy** on Speech Commands (35 
 | Model | Val Acc | Test Acc | Params | Inference |
 |-------|---------|----------|--------|-----------|
 | Wave-STFT + SpecAugment | **92.9%** | **92.6%** | 9.1M | 17ms (CPU) |
+| Wave-STFT Tiny | 86.9% | 85.5% | 584K | 2.4ms (CPU) |
 
 The architecture processes magnitude and phase separately—a natural fit for wave-based operations. ONNX export included for deployment.
 
 ```bash
-# Train
+# Train (full model)
 python train_audio.py --representation stft --specaugment --epochs 100
+
+# Train (tiny model - 5x faster inference)
+python train_audio.py --representation stft --embedding-dim 128 --num-layers 3
 
 # Export to ONNX
 python export_onnx.py --checkpoint data/checkpoints/best.pt
@@ -63,8 +67,8 @@ cd demo && python -m http.server 8000
 ```
 
 The demo runs entirely client-side using ONNX Runtime Web (WASM). Features:
-- Real-time keyword detection (~320ms latency)
-- INT8 quantized model (9.6MB)
+- Real-time keyword detection (~50ms latency with tiny model)
+- Lightweight model (2.4MB)
 - No server required—works offline
 
 See [docs/benchmarks.md](docs/benchmarks.md) and [docs/vision_results.md](docs/vision_results.md) for detailed results.

@@ -153,8 +153,15 @@ def main():
     parser.add_argument("--output", type=str, default=None, help="Output file path")
     parser.add_argument("--mlflow", action="store_true", default=True, help="Log to MLflow")
     parser.add_argument("--no-mlflow", dest="mlflow", action="store_false")
+    parser.add_argument(
+        "--name", type=str, default=None, help="Run name for checkpoints (default: auto)"
+    )
 
     args = parser.parse_args()
+
+    # Generate run name if not provided
+    if args.name is None:
+        args.name = f"{args.representation}_d{args.embedding_dim}_l{args.num_layers}"
 
     # Set seed
     set_seed(args.seed)
@@ -297,7 +304,7 @@ def main():
             # Save checkpoint with epoch and accuracy in filename
             checkpoint_dir = Path("data/checkpoints")
             checkpoint_dir.mkdir(parents=True, exist_ok=True)
-            checkpoint_name = f"wave_audio_{args.representation}_ep{epoch:03d}_val{val_acc:.4f}.pt"
+            checkpoint_name = f"wave_audio_{args.name}_ep{epoch:03d}_val{val_acc:.4f}.pt"
             checkpoint_path = checkpoint_dir / checkpoint_name
             torch.save(
                 {
@@ -319,9 +326,9 @@ def main():
             )
             logger.info(f"Saved checkpoint (val_acc={val_acc:.4f}) to {checkpoint_path}")
 
-            # Keep only top 5 checkpoints
+            # Keep only top 5 checkpoints for this run
             existing = sorted(
-                checkpoint_dir.glob(f"wave_audio_{args.representation}_ep*.pt"),
+                checkpoint_dir.glob(f"wave_audio_{args.name}_ep*.pt"),
                 key=lambda p: float(p.stem.split("_val")[1]),
                 reverse=True,
             )
@@ -361,7 +368,7 @@ def main():
     if args.output:
         output_path = args.output
     else:
-        output_path = f"data/results/wave_audio_{args.representation}_seed{args.seed}.json"
+        output_path = f"data/results/wave_audio_{args.name}_seed{args.seed}.json"
     save_results(results, output_path)
 
     # MLflow cleanup

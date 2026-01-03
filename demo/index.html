@@ -811,9 +811,9 @@
                     throw new Error('Failed to load ONNX Runtime');
                 }
 
-                // Initialize detector (use quantized INT8 model for faster inference)
+                // Initialize detector (tiny model: 130KB, 584K params)
                 this.detector = new KeywordDetector();
-                await this.detector.loadModel('wave_audio_stft_int8.onnx');
+                await this.detector.loadModel('wave_audio_tiny.onnx');
 
                 // Initialize visualizer
                 this.viz = new Visualizer();
