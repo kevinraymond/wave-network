@@ -21,7 +21,7 @@ References:
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 import torch
 from torch.utils.data import DataLoader, Dataset
@@ -61,8 +61,8 @@ class GLUETask:
     label_column: str = "label"
 
     # For sentence pair tasks
-    sentence1_key: Optional[str] = None
-    sentence2_key: Optional[str] = None
+    sentence1_key: str | None = None
+    sentence2_key: str | None = None
 
     # Dataset split names
     train_split: str = "train"
@@ -276,8 +276,8 @@ class GLUEDataset(Dataset):
 def load_glue_task(
     task_name: str,
     tokenizer,
-    batch_size: Optional[int] = None,
-    max_length: Optional[int] = None,
+    batch_size: int | None = None,
+    max_length: int | None = None,
     num_workers: int = 0,
 ) -> dict[str, DataLoader]:
     """

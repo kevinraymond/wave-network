@@ -1,5 +1,3 @@
-from typing import Optional, Union
-
 import numpy as np
 import pandas as pd
 import torch
@@ -59,7 +57,7 @@ def prepare_text_classification_data(
     batch_size: int = 64,
     random_state: int = 42,
     num_workers: int = 2,
-    label_mapping: Optional[dict[Union[str, int], int]] = None,
+    label_mapping: dict[str | int, int] | None = None,
 ) -> dict:
     """
     Prepare any text classification dataset stored in parquet format for training.

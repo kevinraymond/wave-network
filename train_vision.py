@@ -20,7 +20,7 @@ import logging
 import random
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 import torch
@@ -365,16 +365,16 @@ def run_task(
     device: str = "cuda",
     use_mlflow: bool = False,
     output_dir: str = "data/results",
-    learning_rate: Optional[float] = None,
-    num_epochs: Optional[int] = None,
-    batch_size: Optional[int] = None,
-    patch_size: Optional[int] = None,
+    learning_rate: float | None = None,
+    num_epochs: int | None = None,
+    batch_size: int | None = None,
+    patch_size: int | None = None,
     use_randaugment: bool = False,
     use_mixup: bool = False,
     mixup_alpha: float = 0.2,
     label_smoothing: float = 0.0,
-    experiment_name: Optional[str] = None,
-    seed: Optional[int] = None,
+    experiment_name: str | None = None,
+    seed: int | None = None,
 ) -> dict[str, Any]:
     """Run training and evaluation on a single vision task."""
     # Set seed for reproducibility

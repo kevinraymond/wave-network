@@ -10,7 +10,7 @@ import logging
 import random
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 import torch
@@ -57,7 +57,7 @@ class AblationRunner:
     def __init__(
         self,
         ablation_config: AblationConfig,
-        device: Optional[str] = None,
+        device: str | None = None,
     ):
         """
         Args:
@@ -376,7 +376,7 @@ class AblationRunner:
 def run_ablation_from_yaml(
     config_path: str,
     data_loaders: dict,
-    device: Optional[str] = None,
+    device: str | None = None,
 ) -> list[dict[str, Any]]:
     """
     Convenience function to run ablation study from YAML config.

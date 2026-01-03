@@ -31,7 +31,7 @@ def plot_throughput_scaling(results: list[dict], output_dir: Path):
         if len(batch_sizes) == 1:
             axes = [axes]
 
-        for ax, batch_size in zip(axes, batch_sizes):
+        for ax, batch_size in zip(axes, batch_sizes, strict=False):
             for model in models:
                 data = [
                     r

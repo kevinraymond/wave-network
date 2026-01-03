@@ -9,7 +9,7 @@ import json
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal
 
 import yaml
 
@@ -34,7 +34,7 @@ class ModelConfig:
     num_layers: int = 1
 
     # FNet specific
-    ffn_dim: Optional[int] = None  # None = 4 * embedding_dim
+    ffn_dim: int | None = None  # None = 4 * embedding_dim
     max_seq_len: int = 512
 
     # Shared
@@ -104,7 +104,7 @@ class LoggingConfig:
     # W&B
     use_wandb: bool = True
     wandb_project: str = "wave-network"
-    wandb_entity: Optional[str] = None
+    wandb_entity: str | None = None
 
     # Local logging
     log_dir: str = "logs"
@@ -132,8 +132,8 @@ class ExperimentConfig:
 
     # Dataset
     dataset: str = "ag_news"
-    train_path: Optional[str] = None
-    test_path: Optional[str] = None
+    train_path: str | None = None
+    test_path: str | None = None
 
     # Metadata
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())

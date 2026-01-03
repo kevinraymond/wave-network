@@ -19,7 +19,7 @@ import json
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import torch
 import torch.nn as nn
@@ -315,7 +315,7 @@ def run_task(
     device: str = "cuda",
     use_wandb: bool = False,
     output_dir: str = "data/results",
-    learning_rate: Optional[float] = None,
+    learning_rate: float | None = None,
 ) -> dict[str, Any]:
     """Run training and evaluation on a single GLUE task."""
     logger.info(f"Running {task_name} with {model_name}")
@@ -403,11 +403,11 @@ def run_task(
 
 def run_all_tasks(
     model_name: str,
-    tasks: Optional[list[str]] = None,
+    tasks: list[str] | None = None,
     device: str = "cuda",
     use_wandb: bool = False,
     output_dir: str = "data/results",
-    learning_rate: Optional[float] = None,
+    learning_rate: float | None = None,
 ) -> dict[str, dict[str, Any]]:
     """Run on multiple GLUE tasks."""
     if tasks is None:

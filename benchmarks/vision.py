@@ -323,14 +323,14 @@ class VisionMetrics:
         results = {}
 
         if "accuracy" in self.task.metric_names:
-            correct = sum(p == r for p, r in zip(predictions, references))
+            correct = sum(p == r for p, r in zip(predictions, references, strict=True))
             results["accuracy"] = correct / len(references) if references else 0.0
 
         if "top5_accuracy" in self.task.metric_names:
             if probabilities is not None:
                 # Manual top-5 accuracy
                 correct = 0
-                for probs, ref in zip(probabilities, references):
+                for probs, ref in zip(probabilities, references, strict=True):
                     top5 = sorted(range(len(probs)), key=lambda i: probs[i], reverse=True)[:5]
                     if ref in top5:
                         correct += 1
