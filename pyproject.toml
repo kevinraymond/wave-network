@@ -4,7 +4,7 @@ version = "0.2.0"
 description = "Wave Network: An Ultra-Small Language Model using frequency-domain operations"
 readme = "README.md"
 license = {text = "MIT"}
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 authors = [
     {name = "Wave Network Contributors"}
 ]
@@ -14,9 +14,9 @@ classifiers = [
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 
@@ -108,6 +108,11 @@ omit = [
     "train*.py",
     "diagnostic.py",
     "prepare_dataset.py",
+    "benchmarks/inference_speed.py",
+    "benchmarks/plot_inference_results.py",
+    "visualize*.py",
+    "export_onnx.py",
+    "infer.py",
 ]
 branch = true
 
@@ -124,7 +129,7 @@ show_missing = true
 # Ruff configuration (fast Python linter)
 [tool.ruff]
 line-length = 100
-target-version = "py39"
+target-version = "py310"
 
 [tool.ruff.lint]
 select = [
