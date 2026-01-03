@@ -53,6 +53,20 @@ python export_onnx.py --checkpoint data/checkpoints/best.pt
 python infer.py --top 3 recording.wav
 ```
 
+#### Live Web Demo
+
+Try the model in your browser with live microphone input:
+
+```bash
+cd demo && python -m http.server 8000
+# Open http://localhost:8000
+```
+
+The demo runs entirely client-side using ONNX Runtime Web (WASM). Features:
+- Real-time keyword detection (~320ms latency)
+- INT8 quantized model (9.6MB)
+- No server required—works offline
+
 See [docs/benchmarks.md](docs/benchmarks.md) and [docs/vision_results.md](docs/vision_results.md) for detailed results.
 
 ## Quick Start

@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wave Network - Live Keyword Detection</title>
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.0/dist/ort.min.js"></script>
+    <style>
+        :root {
+            --primary: #4CAF50;
+            --primary-dim: #2E7D32;
+            --secondary: #2196F3;
+            --background: #0f0f1a;
+            --surface: #1a1a2e;
+            --surface-light: #252545;
+            --text: #f0f0f0;
+            --text-muted: #888;
+            --error: #f44336;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: var(--background);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 1.5rem;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 500px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .subtitle {
+            color: var(--text-muted);
+            font-size: 0.875rem;
+        }
+
+        .status-bar {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+            padding: 0.75rem 1rem;
+            background: var(--surface);
+            border-radius: 12px;
+        }
+
+        .mic-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--text-muted);
+            transition: all 0.3s ease;
+        }
+
+        .mic-indicator.active {
+            background: var(--primary);
+            box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.7);
+            animation: pulse 1.5s infinite;
+        }
+
+        .mic-indicator.error {
+            background: var(--error);
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.7); }
+            70% { box-shadow: 0 0 0 8px rgba(76, 175, 80, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0); }
+        }
+
+        .status-text {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+        }
+
+        .visualizer {
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        #waveform {
+            width: 100%;
+            height: 80px;
+            display: block;
+        }
+
+        .start-button {
+            width: 100%;
+            padding: 1rem;
+            font-size: 1rem;
+            font-weight: 600;
+            color: white;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dim));
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: transform 0.1s, opacity 0.2s;
+            margin-bottom: 1.5rem;
+        }
+
+        .start-button:hover {
+            transform: scale(1.02);
+        }
+
+        .start-button:active {
+            transform: scale(0.98);
+        }
+
+        .start-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .start-button.stop {
+            background: linear-gradient(135deg, var(--error), #c62828);
+        }
+
+        .predictions {
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 1rem;
+        }
+
+        .predictions-header {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            margin-bottom: 0.75rem;
+        }
+
+        .prediction-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .prediction-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .prediction-rank {
+            width: 20px;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-align: center;
+        }
+
+        .prediction-label {
+            width: 80px;
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
+
+        .bar-container {
+            flex: 1;
+            height: 24px;
+            background: var(--surface-light);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .bar {
+            height: 100%;
+            border-radius: 6px;
+            transition: width 0.15s ease-out;
+            background: linear-gradient(90deg, var(--primary), #8BC34A);
+        }
+
+        .bar.high {
+            background: linear-gradient(90deg, var(--primary), #CDDC39);
+        }
+
+        .prediction-prob {
+            width: 50px;
+            font-size: 0.875rem;
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .error-message {
+            background: rgba(244, 67, 54, 0.1);
+            border: 1px solid var(--error);
+            color: var(--error);
+            padding: 1rem;
+            border-radius: 12px;
+            margin-bottom: 1.5rem;
+            text-align: center;
+            display: none;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-muted);
+        }
+
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--surface-light);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .keywords {
+            margin-top: 1.5rem;
+            padding: 1rem;
+            background: var(--surface);
+            border-radius: 12px;
+        }
+
+        .keywords-header {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+        }
+
+        .keywords-list {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            line-height: 1.6;
+        }
+
+        @media (max-width: 480px) {
+            body {
+                padding: 1rem;
+            }
+
+            .prediction-label {
+                width: 60px;
+                font-size: 0.8rem;
+            }
+
+            .prediction-prob {
+                width: 40px;
+                font-size: 0.75rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Wave Network</h1>
+            <p class="subtitle">Live Keyword Detection</p>
+        </header>
+
+        <div class="error-message" id="error"></div>
+
+        <div id="loading" class="loading">
+            <div class="loading-spinner"></div>
+            <p>Loading model...</p>
+        </div>
+
+        <div id="app" style="display: none;">
+            <div class="status-bar">
+                <div class="mic-indicator" id="mic-indicator"></div>
+                <span class="status-text" id="status-text">Ready</span>
+            </div>
+
+            <div class="visualizer">
+                <canvas id="waveform"></canvas>
+            </div>
+
+            <button class="start-button" id="start-btn">Start Listening</button>
+
+            <div class="predictions">
+                <div class="predictions-header">Predictions</div>
+                <div id="predictions-list">
+                    <!-- Predictions will be inserted here -->
+                </div>
+            </div>
+
+            <div class="keywords">
+                <div class="keywords-header">Supported Keywords (35)</div>
+                <p class="keywords-list">
+                    backward, bed, bird, cat, dog, down, eight, five, follow, forward,
+                    four, go, happy, house, learn, left, marvin, nine, no, off, on,
+                    one, right, seven, sheila, six, stop, three, tree, two, up,
+                    visual, wow, yes, zero
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    // ============================================================
+    // Configuration
+    // ============================================================
+    const SAMPLE_RATE = 16000;
+    const N_FFT = 400;
+    const HOP_LENGTH = 160;
+    const FREQ_BINS = 201;  // N_FFT / 2 + 1
+    const TIME_FRAMES = 101;  // SAMPLE_RATE / HOP_LENGTH + 1
+    const INFERENCE_INTERVAL = 400;  // ms (slower but smoother with 320ms inference)
+
+    const LABELS = [
+        "backward", "bed", "bird", "cat", "dog", "down", "eight", "five",
+        "follow", "forward", "four", "go", "happy", "house", "learn", "left",
+        "marvin", "nine", "no", "off", "on", "one", "right", "seven",
+        "sheila", "six", "stop", "three", "tree", "two", "up", "visual",
+        "wow", "yes", "zero"
+    ];
+
+    // ============================================================
+    // FFT Implementation (Cooley-Tukey radix-2)
+    // ============================================================
+    function fft(real, imag) {
+        const n = real.length;
+        if (n <= 1) return;
+
+        // Bit-reversal permutation
+        for (let i = 0, j = 0; i < n; i++) {
+            if (i < j) {
+                [real[i], real[j]] = [real[j], real[i]];
+                [imag[i], imag[j]] = [imag[j], imag[i]];
+            }
+            let m = n >> 1;
+            while (m >= 1 && j >= m) {
+                j -= m;
+                m >>= 1;
+            }
+            j += m;
+        }
+
+        // Cooley-Tukey iterative FFT
+        for (let len = 2; len <= n; len <<= 1) {
+            const halfLen = len >> 1;
+            const angleStep = -2 * Math.PI / len;
+            for (let i = 0; i < n; i += len) {
+                for (let j = 0; j < halfLen; j++) {
+                    const angle = angleStep * j;
+                    const cos = Math.cos(angle);
+                    const sin = Math.sin(angle);
+                    const tReal = real[i + j + halfLen] * cos - imag[i + j + halfLen] * sin;
+                    const tImag = real[i + j + halfLen] * sin + imag[i + j + halfLen] * cos;
+                    real[i + j + halfLen] = real[i + j] - tReal;
+                    imag[i + j + halfLen] = imag[i + j] - tImag;
+                    real[i + j] += tReal;
+                    imag[i + j] += tImag;
+                }
+            }
+        }
+    }
+
+    // Next power of 2
+    function nextPow2(n) {
+        return Math.pow(2, Math.ceil(Math.log2(n)));
+    }
+
+    // FFT size (next power of 2)
+    const FFT_SIZE = nextPow2(N_FFT);
+
+    // Compute STFT matching torch.stft(center=True) behavior
+    function computeSTFT(samples) {
+        // torch.stft with center=True pads input by n_fft//2 on each side using reflect
+        const pad = Math.floor(N_FFT / 2);
+        const paddedLength = samples.length + 2 * pad;
+        const padded = new Float32Array(paddedLength);
+
+        // Reflect padding at start
+        for (let i = 0; i < pad; i++) {
+            padded[i] = samples[pad - i];
+        }
+        // Copy original
+        for (let i = 0; i < samples.length; i++) {
+            padded[pad + i] = samples[i];
+        }
+        // Reflect padding at end
+        for (let i = 0; i < pad; i++) {
+            const srcIdx = samples.length - 2 - i;
+            padded[pad + samples.length + i] = srcIdx >= 0 ? samples[srcIdx] : 0;
+        }
+
+        const magnitude = new Float32Array(FREQ_BINS * TIME_FRAMES);
+        const phase = new Float32Array(FREQ_BINS * TIME_FRAMES);
+
+        // Reuse buffers
+        const real = new Float32Array(FFT_SIZE);
+        const imag = new Float32Array(FFT_SIZE);
+
+        // Process each frame
+        for (let frame = 0; frame < TIME_FRAMES; frame++) {
+            const start = frame * HOP_LENGTH;
+
+            // Reset buffers
+            real.fill(0);
+            imag.fill(0);
+
+            // Copy samples to FFT buffer (no window - matches PyTorch default)
+            for (let i = 0; i < N_FFT; i++) {
+                const sampleIdx = start + i;
+                real[i] = sampleIdx < padded.length ? padded[sampleIdx] : 0;
+            }
+
+            // Compute FFT
+            fft(real, imag);
+
+            // Extract magnitude and phase for positive frequencies
+            for (let k = 0; k < FREQ_BINS; k++) {
+                const idx = frame * FREQ_BINS + k;
+                const re = real[k];
+                const im = imag[k];
+                magnitude[idx] = Math.sqrt(re * re + im * im);
+                phase[idx] = Math.atan2(im, re);
+            }
+        }
+
+        return { magnitude, phase };
+    }
+
+    // ============================================================
+    // Audio Capture
+    // ============================================================
+    class AudioCapture {
+        constructor(onAudioReady) {
+            this.onAudioReady = onAudioReady;
+            this.audioContext = null;
+            this.stream = null;
+            this.ringBuffer = new Float32Array(SAMPLE_RATE);
+            this.writeIndex = 0;
+            this.isRecording = false;
+            this.inferenceInterval = null;
+            this.analyser = null;
+            this.dataArray = null;
+        }
+
+        async start() {
+            // Request microphone with specific constraints
+            this.stream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    echoCancellation: false,
+                    noiseSuppression: false,
+                    autoGainControl: false,
+                    channelCount: 1
+                }
+            });
+
+            // Create audio context
+            this.audioContext = new (window.AudioContext || window.webkitAudioContext)({
+                sampleRate: SAMPLE_RATE
+            });
+
+            // If browser doesn't support our sample rate, we'll need to resample
+            const actualSampleRate = this.audioContext.sampleRate;
+            this.resampleRatio = actualSampleRate / SAMPLE_RATE;
+
+            // Create source and processor
+            const source = this.audioContext.createMediaStreamSource(this.stream);
+
+            // Create analyser for visualization
+            this.analyser = this.audioContext.createAnalyser();
+            this.analyser.fftSize = 2048;
+            this.dataArray = new Float32Array(this.analyser.fftSize);
+            source.connect(this.analyser);
+
+            // Use ScriptProcessor for audio capture (deprecated but widely supported)
+            const bufferSize = 4096;
+            const processor = this.audioContext.createScriptProcessor(bufferSize, 1, 1);
+
+            processor.onaudioprocess = (e) => {
+                if (!this.isRecording) return;
+
+                const input = e.inputBuffer.getChannelData(0);
+
+                // Simple resampling if needed
+                if (this.resampleRatio !== 1) {
+                    for (let i = 0; i < input.length / this.resampleRatio; i++) {
+                        const srcIdx = Math.floor(i * this.resampleRatio);
+                        this.ringBuffer[this.writeIndex] = input[srcIdx];
+                        this.writeIndex = (this.writeIndex + 1) % SAMPLE_RATE;
+                    }
+                } else {
+                    for (let i = 0; i < input.length; i++) {
+                        this.ringBuffer[this.writeIndex] = input[i];
+                        this.writeIndex = (this.writeIndex + 1) % SAMPLE_RATE;
+                    }
+                }
+            };
+
+            source.connect(processor);
+            processor.connect(this.audioContext.destination);
+
+            // Start inference loop
+            this.isRecording = true;
+            this.inferenceInterval = setInterval(() => {
+                if (this.isRecording) {
+                    const samples = this.getLastSecond();
+                    this.onAudioReady(samples, this.getWaveformData());
+                }
+            }, INFERENCE_INTERVAL);
+        }
+
+        getLastSecond() {
+            const result = new Float32Array(SAMPLE_RATE);
+            for (let i = 0; i < SAMPLE_RATE; i++) {
+                const idx = (this.writeIndex + i) % SAMPLE_RATE;
+                result[i] = this.ringBuffer[idx];
+            }
+            return result;
+        }
+
+        getWaveformData() {
+            if (this.analyser) {
+                this.analyser.getFloatTimeDomainData(this.dataArray);
+                return this.dataArray;
+            }
+            return null;
+        }
+
+        stop() {
+            this.isRecording = false;
+            if (this.inferenceInterval) {
+                clearInterval(this.inferenceInterval);
+                this.inferenceInterval = null;
+            }
+            if (this.stream) {
+                this.stream.getTracks().forEach(t => t.stop());
+            }
+            if (this.audioContext) {
+                this.audioContext.close();
+            }
+        }
+    }
+
+    // ============================================================
+    // Keyword Detector
+    // ============================================================
+    class KeywordDetector {
+        constructor() {
+            this.session = null;
+        }
+
+        async loadModel(modelPath) {
+            // Configure ONNX Runtime for CPU (WASM with SIMD)
+            ort.env.wasm.numThreads = 1;
+            ort.env.wasm.simd = true;
+            ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.0/dist/';
+
+            this.session = await ort.InferenceSession.create(modelPath, {
+                executionProviders: ['wasm'],
+                graphOptimizationLevel: 'all'
+            });
+            console.log('Model loaded (WASM backend)');
+        }
+
+        async predict(audioSamples) {
+            // Compute STFT
+            const { magnitude, phase } = computeSTFT(audioSamples);
+
+            // Create input tensor: shape [1, 2, 201, 101]
+            // Channel 0 = magnitude, Channel 1 = phase
+            // But we need to reshape from [freq, time] per channel to proper layout
+            const inputData = new Float32Array(2 * FREQ_BINS * TIME_FRAMES);
+
+            // Reshape: the model expects (batch, channels, freq, time)
+            // magnitude is stored as [time0_freq0, time0_freq1, ..., time1_freq0, ...]
+            // We need [freq0_time0, freq0_time1, ..., freq1_time0, ...]
+            for (let f = 0; f < FREQ_BINS; f++) {
+                for (let t = 0; t < TIME_FRAMES; t++) {
+                    const srcIdx = t * FREQ_BINS + f;
+                    const dstIdx = f * TIME_FRAMES + t;
+                    inputData[dstIdx] = magnitude[srcIdx];
+                    inputData[FREQ_BINS * TIME_FRAMES + dstIdx] = phase[srcIdx];
+                }
+            }
+
+            const inputTensor = new ort.Tensor('float32', inputData, [1, 2, FREQ_BINS, TIME_FRAMES]);
+
+            // Run inference
+            const results = await this.session.run({ 'stft_input': inputTensor });
+            const logits = results['logits'].data;
+
+            // Softmax
+            const probs = this.softmax(Array.from(logits));
+
+            // Get top-5 predictions
+            return this.getTopK(probs, 5);
+        }
+
+        softmax(logits) {
+            const maxLogit = Math.max(...logits);
+            const exps = logits.map(l => Math.exp(l - maxLogit));
+            const sum = exps.reduce((a, b) => a + b, 0);
+            return exps.map(e => e / sum);
+        }
+
+        getTopK(probs, k) {
+            const indexed = probs.map((p, i) => ({ prob: p, label: LABELS[i], index: i }));
+            indexed.sort((a, b) => b.prob - a.prob);
+            return indexed.slice(0, k);
+        }
+    }
+
+    // ============================================================
+    // Visualizer
+    // ============================================================
+    class Visualizer {
+        constructor() {
+            this.canvas = document.getElementById('waveform');
+            this.ctx = this.canvas.getContext('2d');
+            this.predictionsEl = document.getElementById('predictions-list');
+            this.smoothedPredictions = new Map();
+            this.smoothingFactor = 0.5;
+            this.isSpeaking = false;
+
+            // Set canvas size
+            this.resize();
+            window.addEventListener('resize', () => this.resize());
+        }
+
+        resize() {
+            const rect = this.canvas.parentElement.getBoundingClientRect();
+            this.canvas.width = rect.width - 32;  // Account for padding
+            this.canvas.height = 80;
+        }
+
+        drawWaveform(samples) {
+            if (!samples) return;
+
+            const { width, height } = this.canvas;
+            const ctx = this.ctx;
+
+            // Calculate RMS energy
+            let sumSquares = 0;
+            for (let i = 0; i < samples.length; i++) {
+                sumSquares += samples[i] * samples[i];
+            }
+            const rms = Math.sqrt(sumSquares / samples.length);
+
+            // Detect speech (threshold tuned for typical mic levels)
+            const ENERGY_THRESHOLD = 0.015;
+            this.isSpeaking = rms > ENERGY_THRESHOLD;
+
+            // Clear
+            ctx.fillStyle = '#1a1a2e';
+            ctx.fillRect(0, 0, width, height);
+
+            // Draw waveform - green when speaking, dim when silent
+            ctx.beginPath();
+            ctx.strokeStyle = this.isSpeaking ? '#4CAF50' : '#3a3a4e';
+            ctx.lineWidth = 2;
+
+            const step = Math.ceil(samples.length / width);
+            const centerY = height / 2;
+            const amplitude = height * 0.4;
+
+            for (let i = 0; i < width; i++) {
+                const idx = Math.min(i * step, samples.length - 1);
+                const y = centerY - samples[idx] * amplitude;
+
+                if (i === 0) {
+                    ctx.moveTo(i, y);
+                } else {
+                    ctx.lineTo(i, y);
+                }
+            }
+            ctx.stroke();
+
+            // Draw center line
+            ctx.beginPath();
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+            ctx.lineWidth = 1;
+            ctx.moveTo(0, centerY);
+            ctx.lineTo(width, centerY);
+            ctx.stroke();
+        }
+
+        updatePredictions(predictions) {
+            // When not speaking, fade out all predictions
+            if (!this.isSpeaking) {
+                for (const label of this.smoothedPredictions.keys()) {
+                    const prev = this.smoothedPredictions.get(label) || 0;
+                    this.smoothedPredictions.set(label, prev * 0.7);
+                }
+
+                // Show faded predictions
+                const sorted = predictions.map(p => ({
+                    ...p,
+                    smoothedProb: this.smoothedPredictions.get(p.label) || 0
+                })).sort((a, b) => b.smoothedProb - a.smoothedProb);
+
+                this.predictionsEl.innerHTML = sorted.map((pred, i) => {
+                    const pct = (pred.smoothedProb * 100).toFixed(1);
+                    const barWidth = pred.smoothedProb * 100;
+                    return `
+                        <div class="prediction-item" style="opacity: 0.4">
+                            <span class="prediction-rank">${i + 1}</span>
+                            <span class="prediction-label">${pred.label}</span>
+                            <div class="bar-container">
+                                <div class="bar" style="width: ${barWidth}%"></div>
+                            </div>
+                            <span class="prediction-prob">${pct}%</span>
+                        </div>
+                    `;
+                }).join('');
+                return;
+            }
+
+            // Speaking - update predictions normally
+            predictions.forEach(pred => {
+                const prev = this.smoothedPredictions.get(pred.label) || 0;
+                const smoothed = prev * (1 - this.smoothingFactor) + pred.prob * this.smoothingFactor;
+                this.smoothedPredictions.set(pred.label, smoothed);
+            });
+
+            // Sort by smoothed probability
+            const sorted = predictions.map(p => ({
+                ...p,
+                smoothedProb: this.smoothedPredictions.get(p.label) || p.prob
+            })).sort((a, b) => b.smoothedProb - a.smoothedProb);
+
+            // Update UI
+            this.predictionsEl.innerHTML = sorted.map((pred, i) => {
+                const pct = (pred.smoothedProb * 100).toFixed(1);
+                const barWidth = pred.smoothedProb * 100;
+                const isHigh = pred.smoothedProb > 0.5;
+                return `
+                    <div class="prediction-item">
+                        <span class="prediction-rank">${i + 1}</span>
+                        <span class="prediction-label">${pred.label}</span>
+                        <div class="bar-container">
+                            <div class="bar ${isHigh ? 'high' : ''}" style="width: ${barWidth}%"></div>
+                        </div>
+                        <span class="prediction-prob">${pct}%</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        setMicStatus(status, text) {
+            const indicator = document.getElementById('mic-indicator');
+            const statusText = document.getElementById('status-text');
+
+            indicator.className = 'mic-indicator';
+            if (status === 'active') indicator.classList.add('active');
+            if (status === 'error') indicator.classList.add('error');
+
+            statusText.textContent = text;
+        }
+
+        showInitialPredictions() {
+            const empty = LABELS.slice(0, 5).map((label, i) => ({
+                label,
+                prob: 0,
+                smoothedProb: 0
+            }));
+            this.updatePredictions(empty);
+        }
+    }
+
+    // ============================================================
+    // Main Application
+    // ============================================================
+    class App {
+        constructor() {
+            this.detector = null;
+            this.audio = null;
+            this.viz = null;
+            this.isRunning = false;
+        }
+
+        async init() {
+            const loadingEl = document.getElementById('loading');
+            const appEl = document.getElementById('app');
+            const errorEl = document.getElementById('error');
+
+            try {
+                // Check browser compatibility
+                if (!navigator.mediaDevices?.getUserMedia) {
+                    throw new Error('Microphone access not supported in this browser');
+                }
+
+                if (typeof ort === 'undefined') {
+                    throw new Error('Failed to load ONNX Runtime');
+                }
+
+                // Initialize detector (use quantized INT8 model for faster inference)
+                this.detector = new KeywordDetector();
+                await this.detector.loadModel('wave_audio_stft_int8.onnx');
+
+                // Initialize visualizer
+                this.viz = new Visualizer();
+                this.viz.showInitialPredictions();
+
+                // Setup button
+                const btn = document.getElementById('start-btn');
+                btn.addEventListener('click', () => this.toggle());
+
+                // Show app
+                loadingEl.style.display = 'none';
+                appEl.style.display = 'block';
+
+            } catch (error) {
+                loadingEl.style.display = 'none';
+                errorEl.style.display = 'block';
+                errorEl.textContent = error.message || String(error);
+                console.error('Init error:', error);
+                console.error('Error details:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
+            }
+        }
+
+        async toggle() {
+            const btn = document.getElementById('start-btn');
+
+            if (this.isRunning) {
+                this.stop();
+                btn.textContent = 'Start Listening';
+                btn.classList.remove('stop');
+                this.viz.setMicStatus('inactive', 'Stopped');
+            } else {
+                btn.disabled = true;
+                try {
+                    await this.start();
+                    btn.textContent = 'Stop';
+                    btn.classList.add('stop');
+                    this.viz.setMicStatus('active', 'Listening...');
+                } catch (error) {
+                    this.viz.setMicStatus('error', 'Mic error');
+                    console.error('Start error:', error);
+
+                    const errorEl = document.getElementById('error');
+                    if (error.name === 'NotAllowedError') {
+                        errorEl.textContent = 'Microphone permission denied. Please allow access and reload.';
+                    } else {
+                        errorEl.textContent = `Microphone error: ${error.message}`;
+                    }
+                    errorEl.style.display = 'block';
+                }
+                btn.disabled = false;
+            }
+        }
+
+        async start() {
+            this.inferenceRunning = false;
+
+            this.audio = new AudioCapture(async (samples, waveformData) => {
+                // Always update waveform
+                this.viz.drawWaveform(waveformData);
+
+                // Skip if inference already running (prevent pile-up)
+                if (this.inferenceRunning) return;
+
+                // Calculate audio energy
+                let sumSquares = 0;
+                for (let i = 0; i < samples.length; i++) {
+                    sumSquares += samples[i] * samples[i];
+                }
+                const rms = Math.sqrt(sumSquares / samples.length);
+
+                // Skip inference when quiet (save CPU)
+                const SPEECH_THRESHOLD = 0.04;
+                if (rms < SPEECH_THRESHOLD) {
+                    // Fade out predictions during silence
+                    this.viz.isSpeaking = false;
+                    this.viz.updatePredictions([]);
+                    return;
+                }
+
+                this.viz.isSpeaking = true;
+
+                try {
+                    this.inferenceRunning = true;
+                    const predictions = await this.detector.predict(samples);
+                    this.viz.updatePredictions(predictions);
+                } catch (error) {
+                    console.error('Inference error:', error);
+                } finally {
+                    this.inferenceRunning = false;
+                }
+            });
+
+            await this.audio.start();
+            this.isRunning = true;
+        }
+
+        stop() {
+            if (this.audio) {
+                this.audio.stop();
+                this.audio = null;
+            }
+            this.isRunning = false;
+        }
+    }
+
+    // Start the app
+    const app = new App();
+    app.init();
+    </script>
+</body>
+</html>
