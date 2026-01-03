@@ -32,6 +32,27 @@ CNN-Wave hybrid outperforms ViT with **4x fewer parameters**:
 
 The hybrid combines CNN local feature extraction with Wave's efficient global processing.
 
+### Audio Classification
+
+Wave Network with STFT input achieves **92.9% accuracy** on Speech Commands (35 keywords):
+
+| Model | Val Acc | Test Acc | Params | Inference |
+|-------|---------|----------|--------|-----------|
+| Wave-STFT + SpecAugment | **92.9%** | **92.6%** | 9.1M | 17ms (CPU) |
+
+The architecture processes magnitude and phase separately—a natural fit for wave-based operations. ONNX export included for deployment.
+
+```bash
+# Train
+python train_audio.py --representation stft --specaugment --epochs 100
+
+# Export to ONNX
+python export_onnx.py --checkpoint data/checkpoints/best.pt
+
+# Inference
+python infer.py --top 3 recording.wav
+```
+
 See [docs/benchmarks.md](docs/benchmarks.md) and [docs/vision_results.md](docs/vision_results.md) for detailed results.
 
 ## Quick Start
