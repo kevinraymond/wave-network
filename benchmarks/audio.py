@@ -15,6 +15,72 @@ import torch.nn.functional as F
 import torchaudio
 from torch.utils.data import DataLoader, Dataset
 
+
+class SpecAugment:
+    """
+    SpecAugment: A Simple Data Augmentation Method for ASR.
+
+    Applies frequency and time masking to spectrograms.
+    Reference: https://arxiv.org/abs/1904.08779
+
+    Args:
+        freq_mask_param: Maximum frequency mask width (F in paper)
+        time_mask_param: Maximum time mask width (T in paper)
+        num_freq_masks: Number of frequency masks to apply
+        num_time_masks: Number of time masks to apply
+    """
+
+    def __init__(
+        self,
+        freq_mask_param: int = 27,
+        time_mask_param: int = 10,
+        num_freq_masks: int = 2,
+        num_time_masks: int = 2,
+    ):
+        self.freq_mask_param = freq_mask_param
+        self.time_mask_param = time_mask_param
+        self.num_freq_masks = num_freq_masks
+        self.num_time_masks = num_time_masks
+
+    def __call__(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Apply SpecAugment to input tensor.
+
+        Args:
+            x: Input tensor of shape (channels, freq, time) or (freq, time)
+
+        Returns:
+            Augmented tensor with same shape
+        """
+        x = x.clone()
+
+        # Handle both 2D and 3D inputs
+        if x.dim() == 2:
+            freq_dim, time_dim = x.shape
+            is_2d = True
+            x = x.unsqueeze(0)  # Add channel dim
+        else:
+            _, freq_dim, time_dim = x.shape
+            is_2d = False
+
+        # Frequency masking
+        for _ in range(self.num_freq_masks):
+            f = torch.randint(0, min(self.freq_mask_param, freq_dim), (1,)).item()
+            f0 = torch.randint(0, freq_dim - f + 1, (1,)).item()
+            x[:, f0 : f0 + f, :] = 0
+
+        # Time masking
+        for _ in range(self.num_time_masks):
+            t = torch.randint(0, min(self.time_mask_param, time_dim), (1,)).item()
+            t0 = torch.randint(0, time_dim - t + 1, (1,)).item()
+            x[:, :, t0 : t0 + t] = 0
+
+        if is_2d:
+            x = x.squeeze(0)
+
+        return x
+
+
 # Speech Commands labels (v2, 35 classes)
 SPEECH_COMMANDS_LABELS = [
     "backward",
@@ -78,6 +144,7 @@ class SpeechCommandsDataset(Dataset):
         subset: "training", "validation", or "testing"
         config: AudioConfig for preprocessing
         download: Whether to download if not present
+        augment: Optional augmentation transform (e.g., SpecAugment)
     """
 
     def __init__(
@@ -86,9 +153,11 @@ class SpeechCommandsDataset(Dataset):
         subset: str = "training",
         config: AudioConfig | None = None,
         download: bool = True,
+        augment: SpecAugment | None = None,
     ):
         self.config = config or AudioConfig()
         self.target_length = int(self.config.sample_rate * self.config.duration_sec)
+        self.augment = augment
 
         # Load Speech Commands dataset
         self.dataset = torchaudio.datasets.SPEECHCOMMANDS(
@@ -153,6 +222,10 @@ class SpeechCommandsDataset(Dataset):
         else:
             raise ValueError(f"Unknown representation: {self.config.representation}")
 
+        # Apply augmentation if provided (only for spectrogram-like representations)
+        if self.augment is not None and self.config.representation in ["melspec", "stft"]:
+            x = self.augment(x)
+
         label_idx = LABEL_TO_IDX[label]
         return x, label_idx
 
@@ -174,6 +247,7 @@ def get_audio_dataloaders(
     batch_size: int = 32,
     num_workers: int = 4,
     root: str = "./data",
+    augment: SpecAugment | None = None,
 ) -> tuple[DataLoader, DataLoader, DataLoader]:
     """
     Get train, validation, and test dataloaders for Speech Commands.
@@ -183,13 +257,15 @@ def get_audio_dataloaders(
         batch_size: Batch size
         num_workers: Number of data loading workers
         root: Root directory for dataset
+        augment: Optional augmentation for training data (e.g., SpecAugment)
 
     Returns:
         Tuple of (train_loader, val_loader, test_loader)
     """
     config = config or AudioConfig()
 
-    train_dataset = SpeechCommandsDataset(root, "training", config)
+    # Only apply augmentation to training data
+    train_dataset = SpeechCommandsDataset(root, "training", config, augment=augment)
     val_dataset = SpeechCommandsDataset(root, "validation", config)
     test_dataset = SpeechCommandsDataset(root, "testing", config)
 

@@ -40,6 +40,7 @@ except ImportError:
 from benchmarks.audio import (
     SPEECH_COMMANDS_LABELS,
     AudioConfig,
+    SpecAugment,
     get_audio_dataloaders,
     get_input_shape,
 )
@@ -138,6 +139,15 @@ def main():
     parser.add_argument("--weight-decay", type=float, default=0.01, help="Weight decay")
     parser.add_argument("--embedding-dim", type=int, default=256, help="Embedding dimension")
     parser.add_argument("--num-layers", type=int, default=4, help="Number of layers")
+    parser.add_argument(
+        "--mode",
+        type=str,
+        default="modulation",
+        choices=["modulation", "interference"],
+        help="Wave operation mode",
+    )
+    parser.add_argument("--dropout", type=float, default=0.1, help="Dropout rate")
+    parser.add_argument("--specaugment", action="store_true", help="Enable SpecAugment")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--device", type=str, default="auto", help="Device (auto, cpu, cuda)")
     parser.add_argument("--output", type=str, default=None, help="Output file path")
@@ -162,12 +172,24 @@ def main():
     logger.info(f"Representation: {args.representation}")
     logger.info(f"Input shape: {input_shape}")
 
+    # Setup augmentation
+    augment = None
+    if args.specaugment and args.representation in ["melspec", "stft"]:
+        augment = SpecAugment(
+            freq_mask_param=27,
+            time_mask_param=10,
+            num_freq_masks=2,
+            num_time_masks=2,
+        )
+        logger.info("SpecAugment enabled")
+
     # Load data
     logger.info("Loading Speech Commands dataset...")
     train_loader, val_loader, test_loader = get_audio_dataloaders(
         config=audio_config,
         batch_size=args.batch_size,
         num_workers=4,
+        augment=augment,
     )
     logger.info(
         f"Train: {len(train_loader.dataset)}, Val: {len(val_loader.dataset)}, Test: {len(test_loader.dataset)}"
@@ -179,6 +201,8 @@ def main():
         "num_classes": num_classes,
         "embedding_dim": args.embedding_dim,
         "num_layers": args.num_layers,
+        "mode": args.mode,
+        "dropout": args.dropout,
     }
 
     # Add representation-specific kwargs
@@ -188,6 +212,8 @@ def main():
     elif args.representation == "stft":
         model_kwargs["freq_bins"] = input_shape[1]
         model_kwargs["time_frames"] = input_shape[2]
+
+    logger.info(f"Mode: {args.mode}")
 
     model = create_wave_audio_model(args.representation, **model_kwargs)
     model = model.to(device)
@@ -203,7 +229,10 @@ def main():
     # MLflow setup
     if args.mlflow and MLFLOW_AVAILABLE:
         mlflow.set_experiment("wave-audio-experiments")
-        mlflow.start_run(run_name=f"wave_audio_{args.representation}")
+        run_name = f"wave_audio_{args.representation}"
+        if args.specaugment:
+            run_name += "_specaug"
+        mlflow.start_run(run_name=run_name)
         mlflow.log_params(
             {
                 "representation": args.representation,
@@ -213,6 +242,8 @@ def main():
                 "weight_decay": args.weight_decay,
                 "embedding_dim": args.embedding_dim,
                 "num_layers": args.num_layers,
+                "mode": args.mode,
+                "specaugment": args.specaugment,
                 "seed": args.seed,
                 "num_params": num_params,
             }
@@ -258,10 +289,45 @@ def main():
                 step=epoch,
             )
 
-        # Track best
+        # Track best and save checkpoint (keep top 5)
         if val_acc > best_val_acc:
             best_val_acc = val_acc
             best_test_metrics = {"loss": test_loss, "accuracy": test_acc}
+
+            # Save checkpoint with epoch and accuracy in filename
+            checkpoint_dir = Path("data/checkpoints")
+            checkpoint_dir.mkdir(parents=True, exist_ok=True)
+            checkpoint_name = f"wave_audio_{args.representation}_ep{epoch:03d}_val{val_acc:.4f}.pt"
+            checkpoint_path = checkpoint_dir / checkpoint_name
+            torch.save(
+                {
+                    "epoch": epoch,
+                    "model_state_dict": model.state_dict(),
+                    "optimizer_state_dict": optimizer.state_dict(),
+                    "val_acc": val_acc,
+                    "test_acc": test_acc,
+                    "train_acc": train_acc,
+                    "config": {
+                        "representation": args.representation,
+                        "embedding_dim": args.embedding_dim,
+                        "num_layers": args.num_layers,
+                        "mode": args.mode,
+                        "specaugment": args.specaugment,
+                    },
+                },
+                checkpoint_path,
+            )
+            logger.info(f"Saved checkpoint (val_acc={val_acc:.4f}) to {checkpoint_path}")
+
+            # Keep only top 5 checkpoints
+            existing = sorted(
+                checkpoint_dir.glob(f"wave_audio_{args.representation}_ep*.pt"),
+                key=lambda p: float(p.stem.split("_val")[1]),
+                reverse=True,
+            )
+            for old_ckpt in existing[5:]:
+                old_ckpt.unlink()
+                logger.info(f"Removed old checkpoint: {old_ckpt.name}")
 
         # Log progress
         logger.info(

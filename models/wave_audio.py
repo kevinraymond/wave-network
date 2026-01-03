@@ -292,6 +292,7 @@ class WaveAudioSTFT(nn.Module):
         patch_size: Size of patches (freq, time)
         embedding_dim: Dimension of embeddings
         num_layers: Number of wave processing layers
+        mode: Wave operation mode - "modulation" or "interference"
         dropout: Dropout rate
     """
 
@@ -303,11 +304,13 @@ class WaveAudioSTFT(nn.Module):
         patch_size: tuple = (8, 4),
         embedding_dim: int = 256,
         num_layers: int = 4,
+        mode: str = "modulation",
         dropout: float = 0.1,
         eps: float = 1e-8,
     ):
         super().__init__()
         self.eps = eps
+        self.mode = mode
 
         # Grid dimensions
         self.grid_h = freq_bins // patch_size[0]
@@ -323,7 +326,7 @@ class WaveAudioSTFT(nn.Module):
 
         # Wave layers - uses actual complex numbers with the embedded mag/phase
         self.layers = nn.ModuleList(
-            [WaveLayerComplex(embedding_dim, dropout, eps) for _ in range(num_layers)]
+            [WaveLayerComplex(embedding_dim, dropout, eps, mode) for _ in range(num_layers)]
         )
 
         # Classification head
@@ -374,12 +377,19 @@ class WaveLayerComplex(nn.Module):
 
     Treats the first half of embedding as magnitude-derived,
     second half as phase-derived, and combines them.
+
+    Args:
+        embedding_dim: Dimension of embeddings
+        dropout: Dropout rate
+        eps: Small constant for numerical stability
+        mode: "modulation" (multiply) or "interference" (add)
     """
 
-    def __init__(self, embedding_dim: int, dropout: float, eps: float):
+    def __init__(self, embedding_dim: int, dropout: float, eps: float, mode: str = "modulation"):
         super().__init__()
         self.eps = eps
         self.half_dim = embedding_dim // 2
+        self.mode = mode
 
         # Projections
         self.mag_proj = nn.Linear(embedding_dim, self.half_dim)
@@ -409,16 +419,22 @@ class WaveLayerComplex(nn.Module):
         mag = torch.abs(self.mag_proj(x)) + self.eps
         phase = self.phase_proj(x)
 
-        # Create complex representation and multiply (wave modulation)
-        # Use learned magnitude and phase
+        # Create complex representation
         c = mag * torch.exp(1j * phase)
 
         # Global pooling in complex domain for interaction
         c_global = c.mean(dim=1, keepdim=True)
-        c_modulated = c * c_global.conj()
+
+        # Apply wave operation based on mode
+        if self.mode == "interference":
+            # Interference: add global context
+            c_out = c + c_global
+        else:
+            # Modulation: multiply by conjugate of global
+            c_out = c * c_global.conj()
 
         # Back to real
-        output = torch.cat([c_modulated.real, c_modulated.imag], dim=-1)
+        output = torch.cat([c_out.real, c_out.imag], dim=-1)
         output = self.out_proj(output)
         output = self.dropout(output)
         x = residual + output
@@ -430,6 +446,182 @@ class WaveLayerComplex(nn.Module):
         x = residual + x
 
         return x
+
+
+class WaveLayerReal(nn.Module):
+    """
+    ONNX-exportable wave layer using real arithmetic only.
+
+    Mathematically equivalent to WaveLayerComplex but avoids complex numbers
+    by decomposing: exp(1j*phase) = cos(phase) + 1j*sin(phase)
+
+    Args:
+        embedding_dim: Dimension of embeddings
+        dropout: Dropout rate
+        eps: Small constant for numerical stability
+        mode: "modulation" (multiply) or "interference" (add)
+    """
+
+    def __init__(self, embedding_dim: int, dropout: float, eps: float, mode: str = "modulation"):
+        super().__init__()
+        self.eps = eps
+        self.half_dim = embedding_dim // 2
+        self.mode = mode
+
+        # Projections
+        self.mag_proj = nn.Linear(embedding_dim, self.half_dim)
+        self.phase_proj = nn.Linear(embedding_dim, self.half_dim)
+        self.out_proj = nn.Linear(embedding_dim, embedding_dim)
+
+        # Layer norm and dropout
+        self.norm = nn.LayerNorm(embedding_dim)
+        self.dropout = nn.Dropout(dropout)
+
+        # FFN
+        self.ffn = nn.Sequential(
+            nn.Linear(embedding_dim, embedding_dim * 4),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(embedding_dim * 4, embedding_dim),
+            nn.Dropout(dropout),
+        )
+        self.ffn_norm = nn.LayerNorm(embedding_dim)
+
+    def forward(self, x):
+        # Wave sublayer with explicit mag/phase using real arithmetic
+        residual = x
+        x = self.norm(x)
+
+        # Project to mag and phase components
+        mag = torch.abs(self.mag_proj(x)) + self.eps
+        phase = self.phase_proj(x)
+
+        # Complex representation using real arithmetic:
+        # c = mag * exp(1j * phase) = mag*cos(phase) + 1j*mag*sin(phase)
+        real = mag * torch.cos(phase)
+        imag = mag * torch.sin(phase)
+
+        # Global pooling (separately for real and imag)
+        real_global = real.mean(dim=1, keepdim=True)
+        imag_global = imag.mean(dim=1, keepdim=True)
+
+        # Apply wave operation based on mode
+        if self.mode == "interference":
+            # Interference: add global context
+            out_real = real + real_global
+            out_imag = imag + imag_global
+        else:
+            # Modulation: multiply by conjugate of global
+            # (a + bi) * (c - di) = (ac + bd) + (bc - ad)i
+            out_real = real * real_global + imag * imag_global
+            out_imag = imag * real_global - real * imag_global
+
+        # Concatenate real and imag
+        output = torch.cat([out_real, out_imag], dim=-1)
+        output = self.out_proj(output)
+        output = self.dropout(output)
+        x = residual + output
+
+        # FFN sublayer
+        residual = x
+        x = self.ffn_norm(x)
+        x = self.ffn(x)
+        x = residual + x
+
+        return x
+
+
+class WaveAudioSTFTExport(nn.Module):
+    """
+    ONNX-exportable version of WaveAudioSTFT.
+
+    Uses WaveLayerReal instead of WaveLayerComplex to avoid complex number ops.
+    Weights can be transferred directly from WaveAudioSTFT.
+
+    Args:
+        num_classes: Number of output classes
+        freq_bins: Number of frequency bins
+        time_frames: Number of time frames
+        patch_size: Size of patches (freq, time)
+        embedding_dim: Dimension of embeddings
+        num_layers: Number of wave processing layers
+        mode: Wave operation mode - "modulation" or "interference"
+        dropout: Dropout rate
+    """
+
+    def __init__(
+        self,
+        num_classes: int = 35,
+        freq_bins: int = 201,
+        time_frames: int = 101,
+        patch_size: tuple = (8, 4),
+        embedding_dim: int = 256,
+        num_layers: int = 4,
+        mode: str = "modulation",
+        dropout: float = 0.1,
+        eps: float = 1e-8,
+    ):
+        super().__init__()
+        self.eps = eps
+        self.mode = mode
+
+        # Grid dimensions
+        self.grid_h = freq_bins // patch_size[0]
+        self.grid_w = time_frames // patch_size[1]
+        self.num_patches = self.grid_h * self.grid_w
+
+        # Separate embeddings for magnitude and phase
+        self.mag_embed = nn.Conv2d(1, embedding_dim // 2, patch_size, stride=patch_size)
+        self.phase_embed = nn.Conv2d(1, embedding_dim // 2, patch_size, stride=patch_size)
+
+        # Positional embedding
+        self.pos_embed = nn.Parameter(torch.randn(1, self.num_patches, embedding_dim) * 0.02)
+
+        # Wave layers using real arithmetic (ONNX-compatible)
+        self.layers = nn.ModuleList(
+            [WaveLayerReal(embedding_dim, dropout, eps, mode) for _ in range(num_layers)]
+        )
+
+        # Classification head
+        self.norm = nn.LayerNorm(embedding_dim)
+        self.classifier = nn.Linear(embedding_dim, num_classes)
+
+    def forward(self, x):
+        """
+        Forward pass.
+
+        Args:
+            x: STFT output of shape (batch, 2, freq, time)
+               where channel 0 is magnitude, channel 1 is phase
+
+        Returns:
+            Logits of shape (batch, num_classes)
+        """
+        # Split magnitude and phase
+        mag = x[:, 0:1, :, :]  # (batch, 1, freq, time)
+        phase = x[:, 1:2, :, :]
+
+        # Embed separately
+        mag_emb = self.mag_embed(mag)  # (batch, embed_dim/2, grid_h, grid_w)
+        phase_emb = self.phase_embed(phase)
+
+        # Concatenate
+        x = torch.cat([mag_emb, phase_emb], dim=1)  # (batch, embed_dim, grid_h, grid_w)
+
+        # Flatten
+        x = x.flatten(2).transpose(1, 2)  # (batch, num_patches, embed_dim)
+
+        # Add positional embedding
+        x = x + self.pos_embed
+
+        # Apply wave layers
+        for layer in self.layers:
+            x = layer(x)
+
+        # Pool and classify
+        x = x.mean(dim=1)
+        x = self.norm(x)
+        return self.classifier(x)
 
 
 def create_wave_audio_model(
