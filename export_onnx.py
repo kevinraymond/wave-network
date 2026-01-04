@@ -66,9 +66,9 @@ def export_to_onnx(
     model: torch.nn.Module,
     output_path: str,
     input_shape: tuple,
-    opset_version: int = 17,
+    opset_version: int = 14,
 ) -> None:
-    """Export model to ONNX format."""
+    """Export model to ONNX format using legacy exporter for single-file output."""
     model.eval()
     dummy_input = torch.randn(1, *input_shape)
 
@@ -85,6 +85,7 @@ def export_to_onnx(
             "stft_input": {0: "batch_size"},
             "logits": {0: "batch_size"},
         },
+        dynamo=False,  # Use legacy exporter to embed weights in single file
     )
 
 
@@ -134,8 +135,8 @@ def main():
     parser.add_argument(
         "--opset",
         type=int,
-        default=17,
-        help="ONNX opset version (default: 17)",
+        default=14,
+        help="ONNX opset version (default: 14)",
     )
     args = parser.parse_args()
 
