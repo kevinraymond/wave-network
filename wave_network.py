@@ -16,6 +16,7 @@ class WaveNetwork(nn.Module):
         mode (str): Wave operation mode - "modulation" or "interference" (default: "modulation")
         eps (float): Small constant for numerical stability (default: 1e-8)
         learnable_mode (bool): Enable learnable mixing between modulation and interference (default: False)
+        max_seq_len (int): Maximum sequence length for positional encoding (default: 512)
 
     Attributes:
         embedding: Token embedding layer
@@ -38,15 +39,20 @@ class WaveNetwork(nn.Module):
         mode="modulation",
         eps=1e-8,
         learnable_mode=False,
+        max_seq_len=512,
     ):
         super().__init__()
         self.mode = mode
         self.embedding_dim = embedding_dim
         self.eps = eps
         self.learnable_mode = learnable_mode
+        self.max_seq_len = max_seq_len
 
         # Token embedding in frequency domain
         self.embedding = nn.Embedding(vocab_size, embedding_dim)
+
+        # Positional encoding (as per paper Figure 6a)
+        self.pos_embed = nn.Parameter(torch.randn(1, max_seq_len, embedding_dim) * 0.02)
 
         # Frequency domain transformations
         self.linear1 = nn.Linear(embedding_dim, embedding_dim)
@@ -154,6 +160,10 @@ class WaveNetwork(nn.Module):
         """
         # Get embeddings
         embeddings = self.embedding(input_ids)  # (batch, seq, emb)
+
+        # Add positional encoding (as per paper Figure 6a)
+        seq_len = embeddings.size(1)
+        embeddings = embeddings + self.pos_embed[:, :seq_len, :]
 
         # Apply attention mask to embeddings before processing
         if attention_mask is not None:

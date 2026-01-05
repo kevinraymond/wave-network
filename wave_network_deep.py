@@ -95,6 +95,7 @@ class DeepWaveNetwork(nn.Module):
         num_layers (int): Number of wave layers to stack (default: 3)
         mode (str): Wave operation mode - "modulation" or "interference" (default: "modulation")
         eps (float): Small constant for numerical stability (default: 1e-8)
+        max_seq_len (int): Maximum sequence length for positional encoding (default: 512)
 
     Example:
         >>> model = DeepWaveNetwork(vocab_size=30522, num_classes=2, num_layers=4)
@@ -111,11 +112,16 @@ class DeepWaveNetwork(nn.Module):
         num_layers=3,
         mode="modulation",
         eps=1e-8,
+        max_seq_len=512,
     ):
         super().__init__()
+        self.max_seq_len = max_seq_len
 
         self.embedding = nn.Embedding(vocab_size, embedding_dim)
         nn.init.uniform_(self.embedding.weight, -0.1, 0.1)
+
+        # Positional encoding (as per paper Figure 6a)
+        self.pos_embed = nn.Parameter(torch.randn(1, max_seq_len, embedding_dim) * 0.02)
 
         # Stack of wave layers
         self.wave_layers = nn.ModuleList(
@@ -139,6 +145,10 @@ class DeepWaveNetwork(nn.Module):
         """
         # Embed
         x = self.embedding(input_ids)
+
+        # Add positional encoding (as per paper Figure 6a)
+        seq_len = x.size(1)
+        x = x + self.pos_embed[:, :seq_len, :]
 
         # Process through wave layers
         for layer in self.wave_layers:

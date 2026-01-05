@@ -110,6 +110,11 @@ uv sync --dev
 pre-commit install
 ```
 
+## Changelog
+
+### v0.2.0
+- **Fixed**: Added positional encoding to `WaveNetwork` and `DeepWaveNetwork` text models. The initial implementation was missing this component shown in Figure 6a of the paper, which meant the models treated input as a bag-of-words (word order was ignored). This primarily affects tasks where word order matters (e.g., NLI, QA).
+
 ## License
 
 MIT
