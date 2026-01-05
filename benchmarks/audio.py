@@ -65,13 +65,15 @@ class SpecAugment:
 
         # Frequency masking
         for _ in range(self.num_freq_masks):
-            f = torch.randint(0, min(self.freq_mask_param, freq_dim), (1,)).item()
+            max_f = min(self.freq_mask_param, freq_dim)
+            f = torch.randint(1, max_f + 1, (1,)).item() if max_f > 0 else 0
             f0 = torch.randint(0, freq_dim - f + 1, (1,)).item()
             x[:, f0 : f0 + f, :] = 0
 
         # Time masking
         for _ in range(self.num_time_masks):
-            t = torch.randint(0, min(self.time_mask_param, time_dim), (1,)).item()
+            max_t = min(self.time_mask_param, time_dim)
+            t = torch.randint(1, max_t + 1, (1,)).item() if max_t > 0 else 0
             t0 = torch.randint(0, time_dim - t + 1, (1,)).item()
             x[:, :, t0 : t0 + t] = 0
 
