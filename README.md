@@ -18,6 +18,8 @@ Wave Network achieves near-BERT accuracy with **4.5x fewer parameters**:
 | DBpedia | 98.2% | 99.3% | 24.6M vs 109M |
 | IMDB | 87.2% | 88.7% | 24.6M vs 109M |
 
+*Test accuracy on standard splits.*
+
 On GLUE benchmark, Wave Network wins 5/8 tasks vs FNet with half the parameters (24.6M vs 52.2M).
 
 ### Image Classification
@@ -29,6 +31,8 @@ CNN-Wave hybrid outperforms ViT with **4x fewer parameters**:
 | CNN-Wave (ours) | **92.72%** | **71.93%** | 1.6M |
 | ViT-CIFAR | 90.92% | 66.54% | 6.3M |
 | Wave Vision 2D | 80.41% | 52.81% | 1.4M |
+
+*Test accuracy on standard splits.*
 
 The hybrid combines CNN local feature extraction with Wave's efficient global processing.
 
