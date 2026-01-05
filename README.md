@@ -59,10 +59,12 @@ python infer.py --top 3 recording.wav
 
 #### Live Web Demo
 
-Try the model in your browser with live microphone input:
+**[Try it live](https://kevinraymond.github.io/wave-network/)** - runs entirely in your browser with microphone input.
+
+Or run locally:
 
 ```bash
-cd demo && python -m http.server 8000
+cd docs && python -m http.server 8000
 # Open http://localhost:8000
 ```
 
@@ -71,7 +73,7 @@ The demo runs entirely client-side using ONNX Runtime Web (WASM). Features:
 - Lightweight model (2.4MB)
 - No server required—works offline
 
-See [docs/benchmarks.md](docs/benchmarks.md) and [docs/vision_results.md](docs/vision_results.md) for detailed results.
+See [notes/benchmarks.md](notes/benchmarks.md) and [notes/vision_results.md](notes/vision_results.md) for detailed results.
 
 ## Quick Start
 
@@ -94,11 +96,11 @@ uv run python train_vision.py --task cifar100 --model cnn_wave --randaugment
 
 ## Documentation
 
-- [Benchmark Results](docs/benchmarks.md) - Detailed performance data
-- [Vision Results](docs/vision_results.md) - Image classification benchmarks
-- [Technical Analysis](docs/ANALYSIS.md) - Implementation review
-- [Improvements](docs/IMPROVEMENTS.md) - Roadmap and fixes
-- [Review Summary](docs/REVIEW_SUMMARY.md) - Executive summary
+- [Benchmark Results](notes/benchmarks.md) - Detailed performance data
+- [Vision Results](notes/vision_results.md) - Image classification benchmarks
+- [Technical Analysis](notes/ANALYSIS.md) - Implementation review
+- [Improvements](notes/IMPROVEMENTS.md) - Roadmap and fixes
+- [Review Summary](notes/REVIEW_SUMMARY.md) - Executive summary
 
 ## Development
 
