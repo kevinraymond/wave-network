@@ -157,3 +157,64 @@ class TestDegeneracies:
         for mode in ("modulation", "interference"):
             out = wave_ops.from_complex(wave_ops.wave_superpose(c1, c2, mode), "real_imag")
             assert not torch.allclose(out, out[:, :1, :].expand_as(out), atol=1e-4)
+
+
+class TestParts:
+    """The trig-free (real, imag) path must match the complex-tensor path."""
+
+    def _inputs(self):
+        z1, z2 = torch.randn(2, 8, 16), torch.randn(2, 8, 16)
+        g1 = wave_ops.global_semantics(z1, dim=1, eps=1e-8)
+        g2 = wave_ops.global_semantics(z2, dim=1, eps=1e-8)
+        return z1, g1, z2, g2
+
+    def test_to_parts_matches_polar_form(self):
+        """real + i*imag equals G * exp(i * atan2(sqrt_term, ratio))."""
+        z, g, _, _ = self._inputs()
+        real, imag = wave_ops.to_parts(z, g)
+
+        sqrt_term, ratio = wave_ops.phase_components(z, g)
+        polar = g * torch.exp(1j * torch.atan2(sqrt_term, ratio))
+
+        assert torch.allclose(real, polar.real, atol=1e-5)
+        assert torch.allclose(imag, polar.imag, atol=1e-5)
+
+    def test_imag_is_context(self):
+        """imag = sqrt(G^2 - x^2), the part of the norm carried by other tokens."""
+        z, g, _, _ = self._inputs()
+        _, imag = wave_ops.to_parts(z, g)
+        assert torch.allclose(imag, torch.sqrt(torch.clamp(g**2 - z**2, min=0)), atol=1e-3)
+
+    @pytest.mark.parametrize("mode", ["modulation", "interference"])
+    @pytest.mark.parametrize("output_mode", ["abs", "real", "real_imag"])
+    def test_wave_features_matches_complex_path(self, mode, output_mode):
+        z1, g1, z2, g2 = self._inputs()
+
+        c = wave_ops.wave_superpose(wave_ops.to_complex(z1, g1), wave_ops.to_complex(z2, g2), mode)
+        expected = wave_ops.from_complex(c, output_mode)
+
+        out = wave_ops.wave_features(z1, g1, z2, g2, mode, output_mode)
+        assert not out.is_complex()
+        assert torch.allclose(out, expected, rtol=1e-4, atol=1e-5)
+
+    def test_unknown_mode_raises(self):
+        p = (torch.randn(2, 4), torch.randn(2, 4))
+        with pytest.raises(ValueError, match="Unknown wave mode"):
+            wave_ops.superpose_parts(p, p, "diffraction")
+
+    def test_unknown_output_mode_raises(self):
+        with pytest.raises(ValueError, match="Unknown output_mode"):
+            wave_ops.from_parts(torch.randn(2, 4), torch.randn(2, 4), "imag")
+
+    @pytest.mark.parametrize("output_mode", ["abs", "real", "real_imag"])
+    def test_gradient_finite_for_zero_input(self, output_mode):
+        """All-zero slices (e.g. fully padded dimensions) must not produce NaN gradients."""
+        z1 = torch.zeros(1, 4, 3, requires_grad=True)
+        z2 = torch.zeros(1, 4, 3, requires_grad=True)
+        g1 = wave_ops.global_semantics(z1, dim=1, eps=1e-8)
+        g2 = wave_ops.global_semantics(z2, dim=1, eps=1e-8)
+
+        wave_ops.wave_features(z1, g1, z2, g2, "modulation", output_mode).sum().backward()
+
+        assert torch.isfinite(z1.grad).all()
+        assert torch.isfinite(z2.grad).all()

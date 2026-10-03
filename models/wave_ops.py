@@ -19,6 +19,11 @@ silently degenerate:
   the wave representation entirely.
 - ``real_imag`` preserves everything in both modes; the caller projects the
   doubled feature dimension back down (see WaveLayerSTFT in wave_audio.py).
+
+No trigonometry is needed: since cos(alpha) = x/G and sin(alpha) = sqrt(1 - (x/G)^2),
+the representation is simply Z_jk = x_jk + i * sqrt(G_k^2 - x_jk^2). The ``*_parts``
+functions work on (real, imag) pairs of real tensors and avoid the complex dtype
+altogether; the complex-tensor functions are equivalent.
 """
 
 import torch
@@ -49,11 +54,20 @@ def phase_components(
     return sqrt_term, ratio
 
 
+def to_parts(
+    x: torch.Tensor, g: torch.Tensor, eps: float = 1e-8
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Return (real, imag) of Z = G * exp(i * alpha) without any trigonometry.
+
+    real = G * cos(alpha) recovers x; imag = G * sin(alpha) = sqrt(G^2 - x^2).
+    """
+    sqrt_term, ratio = phase_components(x, g, eps)
+    return g * ratio, g * sqrt_term
+
+
 def to_complex(x: torch.Tensor, g: torch.Tensor, eps: float = 1e-8) -> torch.Tensor:
     """Convert to the polar complex representation Z = G * exp(i * alpha)."""
-    sqrt_term, ratio = phase_components(x, g, eps)
-    phase = torch.atan2(sqrt_term, ratio)
-    return g * torch.exp(1j * phase)
+    return torch.complex(*to_parts(x, g, eps))
 
 
 def wave_superpose(c1: torch.Tensor, c2: torch.Tensor, mode: str = "modulation") -> torch.Tensor:
@@ -67,6 +81,20 @@ def wave_superpose(c1: torch.Tensor, c2: torch.Tensor, mode: str = "modulation")
         return c1 + c2
     if mode == "modulation":
         return c1 * c2
+    raise ValueError(f"Unknown wave mode: {mode!r} (expected 'modulation' or 'interference')")
+
+
+def superpose_parts(
+    p1: tuple[torch.Tensor, torch.Tensor],
+    p2: tuple[torch.Tensor, torch.Tensor],
+    mode: str = "modulation",
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """``wave_superpose`` on (real, imag) pairs."""
+    (a, b), (c, d) = p1, p2
+    if mode == "interference":
+        return a + c, b + d
+    if mode == "modulation":
+        return a * c - b * d, a * d + b * c
     raise ValueError(f"Unknown wave mode: {mode!r} (expected 'modulation' or 'interference')")
 
 
@@ -86,3 +114,32 @@ def from_complex(c: torch.Tensor, output_mode: str = "real_imag") -> torch.Tenso
     raise ValueError(
         f"Unknown output_mode: {output_mode!r} (expected 'abs', 'real', or 'real_imag')"
     )
+
+
+def from_parts(
+    real: torch.Tensor, imag: torch.Tensor, output_mode: str = "real_imag"
+) -> torch.Tensor:
+    """``from_complex`` on a (real, imag) pair."""
+    if output_mode == "abs":
+        return torch.hypot(real, imag)
+    if output_mode == "real":
+        return real
+    if output_mode == "real_imag":
+        return torch.cat([real, imag], dim=-1)
+    raise ValueError(
+        f"Unknown output_mode: {output_mode!r} (expected 'abs', 'real', or 'real_imag')"
+    )
+
+
+def wave_features(
+    z1: torch.Tensor,
+    g1: torch.Tensor,
+    z2: torch.Tensor,
+    g2: torch.Tensor,
+    mode: str = "modulation",
+    output_mode: str = "real_imag",
+    eps: float = 1e-8,
+) -> torch.Tensor:
+    """Full wave operation on real tensors: represent, superpose, convert back."""
+    real, imag = superpose_parts(to_parts(z1, g1, eps), to_parts(z2, g2, eps), mode)
+    return from_parts(real, imag, output_mode)

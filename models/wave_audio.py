@@ -163,20 +163,11 @@ class WaveLayer1D(nn.Module):
         """Global semantics per dimension."""
         return wave_ops.global_semantics(x, dim=1, eps=self.eps)
 
-    def to_complex(self, x, g):
-        """Convert to complex representation."""
-        return wave_ops.to_complex(x, g, self.eps)
-
     def wave_op(self, z1, z2):
         """Apply wave operation."""
         g1 = self.get_global_semantics(z1)
         g2 = self.get_global_semantics(z2)
-        c1 = self.to_complex(z1, g1)
-        c2 = self.to_complex(z2, g2)
-
-        result = wave_ops.wave_superpose(c1, c2, self.mode)
-
-        result = wave_ops.from_complex(result, self.output_mode)
+        result = wave_ops.wave_features(z1, g1, z2, g2, self.mode, self.output_mode, self.eps)
         if self.output_mode == "real_imag":
             result = self.out_proj(result)
         return result

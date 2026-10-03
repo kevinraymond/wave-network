@@ -46,10 +46,6 @@ class WaveLayer(nn.Module):
         """Calculate phase components"""
         return wave_ops.phase_components(x, global_semantics, self.eps)
 
-    def to_complex_repr(self, x, global_semantics):
-        """Convert to complex representation"""
-        return wave_ops.to_complex(x, global_semantics, self.eps)
-
     def forward(self, x, attention_mask=None):
         """
         Forward pass through wave layer.
@@ -75,12 +71,7 @@ class WaveLayer(nn.Module):
         # Wave operation
         g1 = self.get_global_semantics_per_dim(z1)
         g2 = self.get_global_semantics_per_dim(z2)
-        c1 = self.to_complex_repr(z1, g1)
-        c2 = self.to_complex_repr(z2, g2)
-        output = wave_ops.wave_superpose(c1, c2, self.mode)
-
-        # Convert to real
-        output = wave_ops.from_complex(output, self.output_mode)
+        output = wave_ops.wave_features(z1, g1, z2, g2, self.mode, self.output_mode, self.eps)
         if self.output_mode == "real_imag":
             output = self.out_proj(output)
 
