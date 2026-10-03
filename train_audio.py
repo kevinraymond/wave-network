@@ -256,9 +256,11 @@ def main():
             }
         )
 
-    # Training loop
+    # Training loop. The test set is only touched once, after training, on the
+    # val-selected checkpoint - per-epoch test monitoring invites (and looks
+    # like) test-set selection.
     best_val_acc = 0
-    best_test_metrics = None
+    best_checkpoint_path = None
     history = []
 
     logger.info("Starting training...")
@@ -267,7 +269,6 @@ def main():
             model, train_loader, criterion, optimizer, device, scheduler
         )
         val_loss, val_acc = evaluate(model, val_loader, criterion, device)
-        test_loss, test_acc = evaluate(model, test_loader, criterion, device)
 
         # Track history
         epoch_metrics = {
@@ -276,8 +277,6 @@ def main():
             "train_acc": train_acc,
             "val_loss": val_loss,
             "val_acc": val_acc,
-            "test_loss": test_loss,
-            "test_acc": test_acc,
             "lr": scheduler.get_last_lr()[0],
         }
         history.append(epoch_metrics)
@@ -290,8 +289,6 @@ def main():
                     "train_acc": train_acc,
                     "val_loss": val_loss,
                     "val_acc": val_acc,
-                    "test_loss": test_loss,
-                    "test_acc": test_acc,
                 },
                 step=epoch,
             )
@@ -299,7 +296,6 @@ def main():
         # Track best and save checkpoint (keep top 5)
         if val_acc > best_val_acc:
             best_val_acc = val_acc
-            best_test_metrics = {"loss": test_loss, "accuracy": test_acc}
 
             # Save checkpoint with epoch and accuracy in filename
             checkpoint_dir = Path("data/checkpoints")
@@ -312,7 +308,6 @@ def main():
                     "model_state_dict": model.state_dict(),
                     "optimizer_state_dict": optimizer.state_dict(),
                     "val_acc": val_acc,
-                    "test_acc": test_acc,
                     "train_acc": train_acc,
                     "config": {
                         "representation": args.representation,
@@ -324,6 +319,7 @@ def main():
                 },
                 checkpoint_path,
             )
+            best_checkpoint_path = checkpoint_path
             logger.info(f"Saved checkpoint (val_acc={val_acc:.4f}) to {checkpoint_path}")
 
             # Keep only top 5 checkpoints for this run
@@ -340,16 +336,21 @@ def main():
         logger.info(
             f"Epoch {epoch}/{args.epochs} | "
             f"Train: {train_loss:.4f} / {train_acc:.4f} | "
-            f"Val: {val_loss:.4f} / {val_acc:.4f} | "
-            f"Test: {test_loss:.4f} / {test_acc:.4f}"
+            f"Val: {val_loss:.4f} / {val_acc:.4f}"
         )
+
+    # Final test evaluation on the best (val-selected) checkpoint
+    if best_checkpoint_path is not None:
+        checkpoint = torch.load(best_checkpoint_path, map_location=device, weights_only=True)
+        model.load_state_dict(checkpoint["model_state_dict"])
+    test_loss, test_acc = evaluate(model, test_loader, criterion, device)
+    test_metrics = {"loss": test_loss, "accuracy": test_acc}
 
     # Final results
     results = {
         "representation": args.representation,
         "best_val_acc": best_val_acc,
-        "best_test_metrics": best_test_metrics,
-        "final_test_metrics": {"loss": test_loss, "accuracy": test_acc},
+        "test_metrics": test_metrics,
         "history": history,
         "config": {
             "epochs": args.epochs,
@@ -376,13 +377,13 @@ def main():
         mlflow.log_metrics(
             {
                 "best_val_acc": best_val_acc,
-                "best_test_acc": best_test_metrics["accuracy"],
+                "test_acc": test_metrics["accuracy"],
             }
         )
         mlflow.end_run()
 
     logger.info(f"Best validation accuracy: {best_val_acc:.4f}")
-    logger.info(f"Best test accuracy: {best_test_metrics['accuracy']:.4f}")
+    logger.info(f"Test accuracy (best-val checkpoint): {test_metrics['accuracy']:.4f}")
 
 
 if __name__ == "__main__":

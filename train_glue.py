@@ -17,10 +17,12 @@ Usage:
 import argparse
 import json
 import logging
+import random
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import torch
 import torch.nn as nn
 from torch.optim import AdamW
@@ -51,6 +53,16 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+
+def set_seed(seed: int):
+    """Set random seed for reproducibility."""
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
 
 
 # Model registry
@@ -504,12 +516,20 @@ def main():
         default=None,
         help="Override learning rate (default: use task-specific)",
     )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Random seed",
+    )
 
     args = parser.parse_args()
 
     if args.list_tasks:
         print_task_summary()
         return
+
+    set_seed(args.seed)
 
     # Determine tasks
     if args.task.lower() == "all":

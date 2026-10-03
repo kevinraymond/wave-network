@@ -1,6 +1,9 @@
+import argparse
 import os
+import random
 import time
 
+import numpy as np
 import psutil
 import torch
 import torch.nn as nn
@@ -336,11 +339,27 @@ def train_model(model_type):
     return {"metrics": metrics, "resources": resources}
 
 
+def set_seed(seed: int):
+    """Set random seed for reproducibility."""
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+
+
 def main():
+    parser = argparse.ArgumentParser(description="Train Wave Network vs BERT baselines")
+    parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    args = parser.parse_args()
+
+    set_seed(args.seed)
+
     results = {}
 
     # Initialize wandb
-    wandb.init(project=BASE_CONFIG["project_name"])
+    wandb.init(project=BASE_CONFIG["project_name"], config={"seed": args.seed})
 
     try:
         # Train Wave Network
