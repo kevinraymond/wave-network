@@ -13,6 +13,7 @@ from torch.optim import AdamW
 from tqdm import tqdm
 from transformers import BertForSequenceClassification, get_linear_schedule_with_warmup
 
+from models.bag_of_embeddings import BagOfEmbeddings
 from prepare_dataset import prepare_text_classification_data
 from wave_network import WaveNetwork
 
@@ -20,6 +21,15 @@ from wave_network import WaveNetwork
 MODEL_CONFIGS = {
     "wave_network": {
         "name": "wave_network",
+        "learning_rate": 1e-3,
+        "batch_size": 64,
+        "model_params": {
+            "embedding_dim": 768,
+        },
+    },
+    # Control: WaveNetwork without the wave operation
+    "bag_of_embeddings": {
+        "name": "bag_of_embeddings",
         "learning_rate": 1e-3,
         "batch_size": 64,
         "model_params": {
@@ -54,10 +64,18 @@ DATA_PATHS = {
 }
 
 
-def get_model(model_type, vocab_size, num_classes):
+def get_model(model_type, vocab_size, num_classes, output_mode=None):
     """Factory function to create models"""
     if model_type == "wave_network":
+        kwargs = {} if output_mode is None else {"output_mode": output_mode}
         return WaveNetwork(
+            vocab_size=vocab_size,
+            embedding_dim=MODEL_CONFIGS[model_type]["model_params"]["embedding_dim"],
+            num_classes=num_classes,
+            **kwargs,
+        )
+    elif model_type == "bag_of_embeddings":
+        return BagOfEmbeddings(
             vocab_size=vocab_size,
             embedding_dim=MODEL_CONFIGS[model_type]["model_params"]["embedding_dim"],
             num_classes=num_classes,
@@ -315,14 +333,17 @@ class Trainer:
         return test_metrics
 
 
-def train_model(model_type):
+def train_model(model_type, output_mode=None):
     """Train and evaluate a specific model type"""
     # Prepare data and config
     data = prepare_data(model_type)
     config = get_config(model_type)
+    if output_mode is not None and model_type == "wave_network":
+        config["name"] = f"{config['name']}_{output_mode}"
+        config["output_mode"] = output_mode
 
     # Initialize model
-    model = get_model(model_type, data["vocab_size"], data["num_classes"])
+    model = get_model(model_type, data["vocab_size"], data["num_classes"], output_mode)
 
     # Train model
     trainer = Trainer(model, data, config)
@@ -352,6 +373,19 @@ def set_seed(seed: int):
 def main():
     parser = argparse.ArgumentParser(description="Train Wave Network vs BERT baselines")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    parser.add_argument(
+        "--models",
+        nargs="+",
+        default=["wave_network"],
+        choices=list(MODEL_CONFIGS),
+        help="Model(s) to train",
+    )
+    parser.add_argument(
+        "--output-mode",
+        default=None,
+        choices=["abs", "real", "real_imag"],
+        help="Complex-to-real conversion for wave models: abs (pre-v0.3.0), real, or real_imag (default: model default)",
+    )
     args = parser.parse_args()
 
     set_seed(args.seed)
@@ -362,14 +396,11 @@ def main():
     wandb.init(project=BASE_CONFIG["project_name"], config={"seed": args.seed})
 
     try:
-        # Train Wave Network
-        results["wave_network"] = train_model("wave_network")
-        wandb.finish()
-        torch.cuda.reset_peak_memory_stats()
-
-        # Train BERT
-        # results["bert"] = train_model("bert")
-        # wandb.finish()
+        for model_type in args.models:
+            results[model_type] = train_model(model_type, args.output_mode)
+            wandb.finish()
+            if torch.cuda.is_available():
+                torch.cuda.reset_peak_memory_stats()
 
         # Print results
         print("\nFinal Test Results:")

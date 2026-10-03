@@ -44,6 +44,7 @@ from benchmarks.glue import (
     load_glue_task,
     print_task_summary,
 )
+from models.bag_of_embeddings import BagOfEmbeddings
 from models.fnet import FNet, FNetLite
 from wave_network import WaveNetwork
 from wave_network_deep import DeepWaveNetwork
@@ -71,7 +72,11 @@ MODEL_REGISTRY = {
     "deep_wave_network": DeepWaveNetwork,
     "fnet": FNet,
     "fnet_lite": FNetLite,
+    "bag_of_embeddings": BagOfEmbeddings,
 }
+
+# Models that take an output_mode argument
+WAVE_MODELS = {"wave_network", "deep_wave_network"}
 
 # Model-specific default configs
 MODEL_CONFIGS = {
@@ -91,6 +96,9 @@ MODEL_CONFIGS = {
     "fnet_lite": {
         "embedding_dim": 768,
         "num_layers": 3,
+    },
+    "bag_of_embeddings": {
+        "embedding_dim": 768,
     },
 }
 
@@ -308,8 +316,13 @@ def create_model(
     model_name: str,
     num_labels: int,
     vocab_size: int = 30522,
+    output_mode: str | None = None,
 ) -> nn.Module:
-    """Create a model instance."""
+    """Create a model instance.
+
+    ``output_mode`` overrides the complex-to-real conversion of the wave
+    models and is ignored for the others.
+    """
     if model_name not in MODEL_REGISTRY:
         raise ValueError(f"Unknown model: {model_name}. Available: {list(MODEL_REGISTRY.keys())}")
 
@@ -317,6 +330,8 @@ def create_model(
     config = MODEL_CONFIGS[model_name].copy()
     config["vocab_size"] = vocab_size
     config["num_classes"] = num_labels
+    if output_mode is not None and model_name in WAVE_MODELS:
+        config["output_mode"] = output_mode
 
     return model_class(**config)
 
@@ -328,6 +343,7 @@ def run_task(
     use_wandb: bool = False,
     output_dir: str = "data/results",
     learning_rate: float | None = None,
+    output_mode: str | None = None,
 ) -> dict[str, Any]:
     """Run training and evaluation on a single GLUE task."""
     logger.info(f"Running {task_name} with {model_name}")
@@ -356,7 +372,13 @@ def run_task(
         model_name=model_name,
         num_labels=task.num_labels,
         vocab_size=tokenizer.vocab_size,
+        output_mode=output_mode,
     )
+
+    # Keep runs with different output modes from overwriting each other
+    run_name = model_name
+    if output_mode is not None and model_name in WAVE_MODELS:
+        run_name = f"{model_name}_{output_mode}"
 
     num_params = sum(p.numel() for p in model.parameters())
     logger.info(f"Model parameters: {num_params:,}")
@@ -365,9 +387,9 @@ def run_task(
     if use_wandb and WANDB_AVAILABLE:
         wandb.init(
             project="wave-network-glue",
-            name=f"{model_name}_{task_name}",
+            name=f"{run_name}_{task_name}",
             config={
-                "model": model_name,
+                "model": run_name,
                 "task": task_name,
                 "num_params": num_params,
                 **params,
@@ -392,7 +414,7 @@ def run_task(
 
     # Add metadata
     results["task"] = task_name
-    results["model"] = model_name
+    results["model"] = run_name
     results["num_params"] = num_params
     results["timestamp"] = datetime.now().isoformat()
 
@@ -400,7 +422,7 @@ def run_task(
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
 
-    result_file = output_path / f"{model_name}_{task_name}.json"
+    result_file = output_path / f"{run_name}_{task_name}.json"
     with open(result_file, "w") as f:
         json.dump(results, f, indent=2, default=str)
 
@@ -420,6 +442,7 @@ def run_all_tasks(
     use_wandb: bool = False,
     output_dir: str = "data/results",
     learning_rate: float | None = None,
+    output_mode: str | None = None,
 ) -> dict[str, dict[str, Any]]:
     """Run on multiple GLUE tasks."""
     if tasks is None:
@@ -436,6 +459,7 @@ def run_all_tasks(
                 use_wandb=use_wandb,
                 output_dir=output_dir,
                 learning_rate=learning_rate,
+                output_mode=output_mode,
             )
             all_results[task_name] = results
         except Exception as e:
@@ -522,6 +546,13 @@ def main():
         default=42,
         help="Random seed",
     )
+    parser.add_argument(
+        "--output-mode",
+        type=str,
+        default=None,
+        choices=["abs", "real", "real_imag"],
+        help="Complex-to-real conversion for wave models: abs (pre-v0.3.0), real, or real_imag (default: model default)",
+    )
 
     args = parser.parse_args()
 
@@ -549,6 +580,7 @@ def main():
                 use_wandb=args.wandb,
                 output_dir=args.output_dir,
                 learning_rate=args.lr,
+                output_mode=args.output_mode,
             )
         else:
             run_all_tasks(
@@ -558,6 +590,7 @@ def main():
                 use_wandb=args.wandb,
                 output_dir=args.output_dir,
                 learning_rate=args.lr,
+                output_mode=args.output_mode,
             )
 
 

@@ -42,6 +42,12 @@ CNN-Wave hybrid outperforms ViT with **4x fewer parameters**:
 
 The hybrid combines CNN local feature extraction with Wave's efficient global processing.
 
+> **Note on these numbers:** they use `output_mode="abs"` with modulation, where each
+> wave scale reduces to energy pooling (the sum of squared features over a row, column,
+> or 3x3 neighborhood) and the phase is unused. Comparisons against the stem-only control
+> (`--model cnn_stem`) and the phase-preserving modes (`--output-mode real` / `real_imag`)
+> are pending.
+
 ### Audio Classification
 
 Wave Network with STFT input achieves **92.9% accuracy** on Speech Commands (35 keywords):
@@ -143,6 +149,17 @@ pre-commit install
   projection biases (masking is now applied after `linear1`/`linear2`).
 - **Changed**: Shared wave math consolidated into `models/wave_ops.py` (was duplicated,
   with drift, across six files).
+- **Added**: `output_mode` for the vision models (`WaveVisionNetwork`, `WaveVisionNetwork2D`,
+  `CNNWaveVision`) and `--output-mode` for `train.py`, `train_glue.py` and `train_vision.py`.
+  The vision default stays `"abs"` so published results and checkpoints reproduce; under
+  modulation that mode has the same degeneracy as the text models had (see the note under
+  Image Classification).
+- **Added**: Controls for measuring what the wave operation contributes: `bag_of_embeddings`
+  (`WaveNetwork` without the wave operation; `train.py --models`, `train_glue.py --model`)
+  and `cnn_stem` (`CNNWaveVision` without wave layers; `train_vision.py --model`).
+- **Changed**: The wave math no longer uses trigonometry (`Z = x + i*sqrt(G^2 - x^2)`), and
+  the stacked layers compute it on real tensors without the complex dtype. Outputs are
+  unchanged to float precision.
 - **Changed**: `train_audio.py` evaluates the test set once, after training, on the
   val-selected checkpoint (was: every epoch). `train.py` and `train_glue.py` gained
   `--seed` flags.
