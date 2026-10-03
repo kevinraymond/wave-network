@@ -15,6 +15,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from models import wave_ops
+
 
 class WaveLayer2D(nn.Module):
     """
@@ -67,24 +69,15 @@ class WaveLayer2D(nn.Module):
 
     def get_global_semantics(self, x, dim):
         """Calculate global semantics along a specific dimension."""
-        squared = x * x
-        return torch.sqrt(torch.sum(squared, dim=dim, keepdim=True) + self.eps)
+        return wave_ops.global_semantics(x, dim=dim, eps=self.eps)
 
     def to_complex_repr(self, x, global_semantics):
         """Convert to complex polar representation."""
-        ratio = x / (global_semantics + self.eps)
-        # Clamp to valid range for sqrt
-        ratio = torch.clamp(ratio, -1 + self.eps, 1 - self.eps)
-        sqrt_term = torch.sqrt(1 - ratio**2)
-        phase = torch.atan2(sqrt_term, ratio)
-        return global_semantics * torch.exp(1j * phase)
+        return wave_ops.to_complex(x, global_semantics, self.eps)
 
     def wave_op(self, c1, c2):
         """Apply wave operation (modulation or interference)."""
-        if self.mode == "modulation":
-            return c1 * c2
-        else:
-            return c1 + c2
+        return wave_ops.wave_superpose(c1, c2, self.mode)
 
     def process_rows(self, x):
         """
@@ -192,19 +185,11 @@ class WaveLayer2D(nn.Module):
         local_g = torch.sqrt(local_sum * 9 + self.eps)  # *9 to undo avg
 
         # Convert center to complex
-        ratio = z_2d / (local_g + self.eps)
-        ratio = torch.clamp(ratio, -1 + self.eps, 1 - self.eps)
-        sqrt_term = torch.sqrt(1 - ratio**2)
-        phase = torch.atan2(sqrt_term, ratio)
-        c_center = local_g * torch.exp(1j * phase)
+        c_center = wave_ops.to_complex(z_2d, local_g, self.eps)
 
         # Get shifted version (diagonal neighbor)
         z_shifted = torch.roll(torch.roll(z_2d, 1, dims=2), 1, dims=3)
-        ratio_shifted = z_shifted / (local_g + self.eps)
-        ratio_shifted = torch.clamp(ratio_shifted, -1 + self.eps, 1 - self.eps)
-        sqrt_shifted = torch.sqrt(1 - ratio_shifted**2)
-        phase_shifted = torch.atan2(sqrt_shifted, ratio_shifted)
-        c_neighbor = local_g * torch.exp(1j * phase_shifted)
+        c_neighbor = wave_ops.to_complex(z_shifted, local_g, self.eps)
 
         # Wave operation
         output = self.wave_op(c_center, c_neighbor)

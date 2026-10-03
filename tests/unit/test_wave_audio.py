@@ -43,6 +43,22 @@ class TestWaveLayer1D:
         assert not torch.isnan(out).any()
         assert not torch.isinf(out).any()
 
+    def test_output_modes(self):
+        """Test the phase-preserving output modes added in v0.3.0."""
+        x = torch.randn(2, 10, 64)
+        for output_mode in ["abs", "real", "real_imag"]:
+            layer = WaveLayer1D(
+                embedding_dim=64, mode="modulation", dropout=0.1, eps=1e-8, output_mode=output_mode
+            )
+            out = layer(x)
+            assert out.shape == x.shape
+            assert not torch.isnan(out).any()
+
+        # Default stays "abs" so pre-v0.3.0 checkpoints keep loading
+        layer = WaveLayer1D(embedding_dim=64, mode="modulation", dropout=0.1, eps=1e-8)
+        assert layer.output_mode == "abs"
+        assert not hasattr(layer, "out_proj")
+
 
 class TestWaveLayerComplex:
     """Tests for WaveLayerComplex."""

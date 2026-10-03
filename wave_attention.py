@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
 
+from models import wave_ops
+
 
 class WaveAttention(nn.Module):
     """
@@ -44,16 +46,11 @@ class WaveAttention(nn.Module):
 
     def get_global_semantics(self, x):
         """Compute global semantics per dimension"""
-        squared = x * x
-        return torch.sqrt(torch.sum(squared, dim=-2, keepdim=True))
+        return wave_ops.global_semantics(x, dim=-2, eps=self.eps)
 
     def to_complex(self, x, g):
         """Convert to complex representation"""
-        eps = self.eps
-        ratio = x / (g + eps)
-        sqrt_term = torch.sqrt(torch.clamp(1 - ratio**2, min=0, max=1))
-        phase = torch.atan2(sqrt_term, ratio)
-        return g * torch.exp(1j * phase)
+        return wave_ops.to_complex(x, g, self.eps)
 
     def forward(self, x, attention_mask=None):
         """

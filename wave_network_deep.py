@@ -1,15 +1,26 @@
 import torch
 import torch.nn as nn
 
+from models import wave_ops
+
 
 class WaveLayer(nn.Module):
-    """Single wave processing layer"""
+    """Single wave processing layer.
 
-    def __init__(self, embedding_dim, mode="modulation", eps=1e-8):
+    Args:
+        embedding_dim (int): Feature dimension
+        mode (str): "modulation" or "interference" (default: "modulation")
+        eps (float): Numerical stability constant (default: 1e-8)
+        output_mode (str): Complex-to-real conversion - "real_imag", "real", or
+            "abs" (default: "real_imag"; see WaveNetwork for the trade-offs)
+    """
+
+    def __init__(self, embedding_dim, mode="modulation", eps=1e-8, output_mode="real_imag"):
         super().__init__()
         self.mode = mode
         self.eps = eps
         self.embedding_dim = embedding_dim
+        self.output_mode = output_mode
 
         # Two linear projections
         self.linear1 = nn.Linear(embedding_dim, embedding_dim)
@@ -21,25 +32,23 @@ class WaveLayer(nn.Module):
         nn.init.zeros_(self.linear1.bias)
         nn.init.zeros_(self.linear2.bias)
 
+        if output_mode == "real_imag":
+            self.out_proj = nn.Linear(2 * embedding_dim, embedding_dim)
+
         # Layer normalization
         self.layer_norm = nn.LayerNorm(embedding_dim)
 
     def get_global_semantics_per_dim(self, x):
         """Calculate global semantics per dimension"""
-        squared = x * x
-        return torch.sqrt(torch.sum(squared, dim=1, keepdim=True))
+        return wave_ops.global_semantics(x, dim=1, eps=self.eps)
 
     def get_phase_components(self, x, global_semantics):
         """Calculate phase components"""
-        ratio = x / (global_semantics + self.eps)
-        sqrt_term = torch.sqrt(torch.clamp(1 - ratio**2, min=0, max=1))
-        return sqrt_term, ratio
+        return wave_ops.phase_components(x, global_semantics, self.eps)
 
     def to_complex_repr(self, x, global_semantics):
         """Convert to complex representation"""
-        sqrt_term, ratio = self.get_phase_components(x, global_semantics)
-        phase = torch.atan2(sqrt_term, ratio)
-        return global_semantics * torch.exp(1j * phase)
+        return wave_ops.to_complex(x, global_semantics, self.eps)
 
     def forward(self, x, attention_mask=None):
         """
@@ -52,28 +61,28 @@ class WaveLayer(nn.Module):
         Returns:
             Output tensor of shape (batch, seq, dim)
         """
-        # Apply mask if provided
-        if attention_mask is not None:
-            mask = attention_mask.unsqueeze(-1).float()
-            x = x * mask
-
         # Project
         z1 = self.linear1(x)
         z2 = self.linear2(x)
+
+        # Mask after projection so the linear biases don't leak padded
+        # positions into the global semantics norms
+        if attention_mask is not None:
+            mask = attention_mask.unsqueeze(-1).float()
+            z1 = z1 * mask
+            z2 = z2 * mask
 
         # Wave operation
         g1 = self.get_global_semantics_per_dim(z1)
         g2 = self.get_global_semantics_per_dim(z2)
         c1 = self.to_complex_repr(z1, g1)
         c2 = self.to_complex_repr(z2, g2)
-
-        if self.mode == "modulation":
-            output = c1 * c2
-        else:  # interference
-            output = c1 + c2
+        output = wave_ops.wave_superpose(c1, c2, self.mode)
 
         # Convert to real
-        output = torch.abs(output)
+        output = wave_ops.from_complex(output, self.output_mode)
+        if self.output_mode == "real_imag":
+            output = self.out_proj(output)
 
         # Residual connection + layer norm
         output = self.layer_norm(output + x)
@@ -96,6 +105,8 @@ class DeepWaveNetwork(nn.Module):
         mode (str): Wave operation mode - "modulation" or "interference" (default: "modulation")
         eps (float): Small constant for numerical stability (default: 1e-8)
         max_seq_len (int): Maximum sequence length for positional encoding (default: 512)
+        output_mode (str): Complex-to-real conversion - "real_imag", "real", or
+            "abs" (default: "real_imag"; see WaveNetwork for the trade-offs)
 
     Example:
         >>> model = DeepWaveNetwork(vocab_size=30522, num_classes=2, num_layers=4)
@@ -113,6 +124,7 @@ class DeepWaveNetwork(nn.Module):
         mode="modulation",
         eps=1e-8,
         max_seq_len=512,
+        output_mode="real_imag",
     ):
         super().__init__()
         self.max_seq_len = max_seq_len
@@ -125,7 +137,10 @@ class DeepWaveNetwork(nn.Module):
 
         # Stack of wave layers
         self.wave_layers = nn.ModuleList(
-            [WaveLayer(embedding_dim, mode=mode, eps=eps) for _ in range(num_layers)]
+            [
+                WaveLayer(embedding_dim, mode=mode, eps=eps, output_mode=output_mode)
+                for _ in range(num_layers)
+            ]
         )
 
         # Classifier

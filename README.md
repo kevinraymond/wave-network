@@ -20,6 +20,12 @@ Wave Network achieves near-BERT accuracy with **4.5x fewer parameters**:
 
 *Test accuracy on standard splits.*
 
+> **Note on these numbers (v0.3.0):** the results above were produced with the
+> pre-v0.3.0 `output_mode="abs"` conversion, which under modulation discards all
+> token-level information (see Changelog). They are pending re-run with the fixed
+> conversion. The paper's "2.4M parameters" excludes the ~23.4M token embedding
+> table; the counts reported here include it.
+
 On GLUE benchmark, Wave Network wins 5/8 tasks vs FNet with half the parameters (24.6M vs 52.2M).
 
 ### Image Classification
@@ -117,6 +123,29 @@ pre-commit install
 ```
 
 ## Changelog
+
+### v0.3.0
+- **Fixed**: Complex-to-real conversion in the text models (`WaveNetwork`, `DeepWaveNetwork`).
+  The previous `torch.abs()` conversion is degenerate under modulation (the default mode):
+  since both operands have magnitude `G_k` for *every* token, `|c1*c2| = G1*G2` is identical
+  at every sequence position — per-token features never reached the classifier, only the
+  norm statistics `G1*G2` (which still encode a quadratic bag of token/position energies,
+  which is why the old models worked at all). The new default `output_mode="real_imag"`
+  concatenates real and
+  imaginary parts and projects back down (the same pattern as the audio `WaveLayerSTFT`,
+  the best-performing model in this repo). `output_mode="abs"` reproduces the old behavior;
+  `output_mode="real"` is the paper's local-semantics reading (but is linear under
+  interference). See `models/wave_ops.py` for the math.
+- **Fixed**: `sqrt(0)` infinite gradient in the phase computation when a single position
+  carries a dimension's entire norm — the likely cause of the NaN issues previously noted
+  in `notes/benchmarks.md`. All variants now use the eps-clamped math in `models/wave_ops.py`.
+- **Fixed**: Padding positions no longer leak into the global semantics norms via the
+  projection biases (masking is now applied after `linear1`/`linear2`).
+- **Changed**: Shared wave math consolidated into `models/wave_ops.py` (was duplicated,
+  with drift, across six files).
+- **Changed**: `train_audio.py` evaluates the test set once, after training, on the
+  val-selected checkpoint (was: every epoch). `train.py` and `train_glue.py` gained
+  `--seed` flags.
 
 ### v0.2.0
 - **Fixed**: Added positional encoding to `WaveNetwork` and `DeepWaveNetwork` text models. The initial implementation was missing this component shown in Figure 6a of the paper, which meant the models treated input as a bag-of-words (word order was ignored). This primarily affects tasks where word order matters (e.g., NLI, QA).

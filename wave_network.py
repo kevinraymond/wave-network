@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
 
+from models import wave_ops
+
 
 class WaveNetwork(nn.Module):
     """
@@ -17,6 +19,15 @@ class WaveNetwork(nn.Module):
         eps (float): Small constant for numerical stability (default: 1e-8)
         learnable_mode (bool): Enable learnable mixing between modulation and interference (default: False)
         max_seq_len (int): Maximum sequence length for positional encoding (default: 512)
+        output_mode (str): How the complex wave output maps back to real features -
+            "real_imag", "real", or "abs" (default: "real_imag").
+
+            "abs" reproduces the pre-v0.3.0 behavior but is degenerate under
+            modulation: |c1*c2| = G1*G2 is identical for every token, so all
+            token-level information is discarded. "real" is the paper's local
+            semantics reading but is linear under interference. "real_imag"
+            preserves both components in both modes (mirrors WaveLayerSTFT in
+            models/wave_audio.py) at the cost of one extra linear projection.
 
     Attributes:
         embedding: Token embedding layer
@@ -40,6 +51,7 @@ class WaveNetwork(nn.Module):
         eps=1e-8,
         learnable_mode=False,
         max_seq_len=512,
+        output_mode="real_imag",
     ):
         super().__init__()
         self.mode = mode
@@ -47,6 +59,7 @@ class WaveNetwork(nn.Module):
         self.eps = eps
         self.learnable_mode = learnable_mode
         self.max_seq_len = max_seq_len
+        self.output_mode = output_mode
 
         # Token embedding in frequency domain
         self.embedding = nn.Embedding(vocab_size, embedding_dim)
@@ -63,6 +76,10 @@ class WaveNetwork(nn.Module):
         nn.init.orthogonal_(self.linear2.weight)
         nn.init.zeros_(self.linear1.bias)
         nn.init.zeros_(self.linear2.bias)
+
+        # real_imag doubles the feature dimension; project back down
+        if output_mode == "real_imag":
+            self.out_proj = nn.Linear(2 * embedding_dim, embedding_dim)
 
         self.layer_norm = nn.LayerNorm(embedding_dim)
         self.classifier = nn.Linear(embedding_dim, num_classes)
@@ -81,28 +98,23 @@ class WaveNetwork(nn.Module):
 
     def get_global_semantics_per_dim(self, x):
         """Calculate global semantics per dimension as per paper section 3.1.1"""
-        # Square each element (signal energy E = w²j,k)
-        squared = x * x
-
-        # Sum squared values per dimension (Gk = ||w:,k||2)
-        return torch.sqrt(torch.sum(squared, dim=1, keepdim=True))
+        return wave_ops.global_semantics(x, dim=1, eps=self.eps)
 
     def get_phase_components(self, x, global_semantics):
         """Calculate phase components as per section 3.1.2"""
-        # Calculate ratio wj,k/Gk
-        ratio = x / (global_semantics + self.eps)
-
-        # Calculate sqrt(1-(wj,k/Gk)²) term
-        sqrt_term = torch.sqrt(torch.clamp(1 - ratio**2, min=0, max=1))
-
-        # Return both components for arctan2
-        return sqrt_term, ratio
+        return wave_ops.phase_components(x, global_semantics, self.eps)
 
     def to_complex_repr(self, x, global_semantics):
         """Convert to complex representation in polar form"""
-        sqrt_term, ratio = self.get_phase_components(x, global_semantics)
-        phase = torch.atan2(sqrt_term, ratio)
-        return global_semantics * torch.exp(1j * phase)
+        return wave_ops.to_complex(x, global_semantics, self.eps)
+
+    def _superpose(self, z1, z2, mode):
+        """Convert both inputs to complex representations and combine them."""
+        g1 = self.get_global_semantics_per_dim(z1)
+        g2 = self.get_global_semantics_per_dim(z2)
+        c1 = self.to_complex_repr(z1, g1)
+        c2 = self.to_complex_repr(z2, g2)
+        return wave_ops.wave_superpose(c1, c2, mode)
 
     def wave_modulation(self, z1, z2):
         """
@@ -112,19 +124,7 @@ class WaveNetwork(nn.Module):
         phases add and magnitudes multiply naturally - this is the correct
         wave modulation behavior.
         """
-        # Get global semantics per dimension
-        g1 = self.get_global_semantics_per_dim(z1)
-        g2 = self.get_global_semantics_per_dim(z2)
-
-        # Convert to complex representations
-        c1 = self.to_complex_repr(z1, g1)
-        c2 = self.to_complex_repr(z2, g2)
-
-        # Simple multiplication - phase adds, magnitude multiplies
-        # This is the natural wave modulation
-        modulated = c1 * c2
-
-        return modulated
+        return self._superpose(z1, z2, "modulation")
 
     def wave_interference(self, z1, z2):
         """
@@ -134,18 +134,14 @@ class WaveNetwork(nn.Module):
         occurs through complex addition where phases interact constructively
         or destructively.
         """
-        # Get global semantics per dimension
-        g1 = self.get_global_semantics_per_dim(z1)
-        g2 = self.get_global_semantics_per_dim(z2)
+        return self._superpose(z1, z2, "interference")
 
-        # Convert to complex representations
-        c1 = self.to_complex_repr(z1, g1)
-        c2 = self.to_complex_repr(z2, g2)
-
-        # Simple addition - natural wave interference
-        interfered = c1 + c2
-
-        return interfered
+    def _from_complex(self, c):
+        """Map the complex wave output back to real features."""
+        output = wave_ops.from_complex(c, self.output_mode)
+        if self.output_mode == "real_imag":
+            output = self.out_proj(output)
+        return output
 
     def forward(self, input_ids, attention_mask=None):
         """
@@ -165,15 +161,16 @@ class WaveNetwork(nn.Module):
         seq_len = embeddings.size(1)
         embeddings = embeddings + self.pos_embed[:, :seq_len, :]
 
-        # Apply attention mask to embeddings before processing
-        if attention_mask is not None:
-            # Expand mask to embedding dimension
-            mask = attention_mask.unsqueeze(-1).float()  # (batch, seq, 1)
-            embeddings = embeddings * mask
-
         # Transform in frequency domain
         z1 = self.linear1(embeddings)
         z2 = self.linear2(embeddings)
+
+        # Mask after projection: the linear biases would otherwise let padded
+        # positions contribute to the global semantics norms
+        if attention_mask is not None:
+            mask = attention_mask.unsqueeze(-1).float()  # (batch, seq, 1)
+            z1 = z1 * mask
+            z2 = z2 * mask
 
         # Apply wave operation
         if self.learnable_mode:
@@ -185,14 +182,10 @@ class WaveNetwork(nn.Module):
             alpha = torch.sigmoid(self.mode_weight)
             output = alpha * modulated + (1 - alpha) * interfered
         else:
-            # Fixed mode
-            if self.mode == "interference":
-                output = self.wave_interference(z1, z2)
-            else:  # modulation
-                output = self.wave_modulation(z1, z2)
+            output = self._superpose(z1, z2, self.mode)
 
-        # Convert back to magnitude
-        output = torch.abs(output)
+        # Convert back to real features
+        output = self._from_complex(output)
         output = self.layer_norm(output)
 
         # Global average pooling - only average over non-masked tokens

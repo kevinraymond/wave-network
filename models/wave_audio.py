@@ -10,6 +10,8 @@ Supports three input representations:
 import torch
 import torch.nn as nn
 
+from models import wave_ops
+
 
 class WaveAudio1D(nn.Module):
     """
@@ -38,6 +40,7 @@ class WaveAudio1D(nn.Module):
         mode: str = "modulation",
         dropout: float = 0.1,
         eps: float = 1e-8,
+        output_mode: str = "abs",
     ):
         super().__init__()
         self.mode = mode
@@ -61,7 +64,10 @@ class WaveAudio1D(nn.Module):
 
         # Wave processing layers
         self.layers = nn.ModuleList(
-            [WaveLayer1D(embedding_dim, mode, dropout, eps) for _ in range(num_layers)]
+            [
+                WaveLayer1D(embedding_dim, mode, dropout, eps, output_mode=output_mode)
+                for _ in range(num_layers)
+            ]
         )
 
         # Classification head
@@ -104,12 +110,26 @@ class WaveAudio1D(nn.Module):
 
 
 class WaveLayer1D(nn.Module):
-    """Single wave processing layer for 1D sequences."""
+    """Single wave processing layer for 1D sequences.
 
-    def __init__(self, embedding_dim: int, mode: str, dropout: float, eps: float):
+    ``output_mode`` defaults to "abs" so existing checkpoints keep loading;
+    note that abs after modulation is position-independent (|c1*c2| = G1*G2),
+    so only the residual carries token-level information in that combination.
+    Use "real_imag" to preserve phase (see models/wave_ops.py).
+    """
+
+    def __init__(
+        self,
+        embedding_dim: int,
+        mode: str,
+        dropout: float,
+        eps: float,
+        output_mode: str = "abs",
+    ):
         super().__init__()
         self.mode = mode
         self.eps = eps
+        self.output_mode = output_mode
 
         # Linear projections for wave operation
         self.linear1 = nn.Linear(embedding_dim, embedding_dim)
@@ -120,6 +140,10 @@ class WaveLayer1D(nn.Module):
         nn.init.orthogonal_(self.linear2.weight)
         nn.init.zeros_(self.linear1.bias)
         nn.init.zeros_(self.linear2.bias)
+
+        # real_imag doubles the feature dimension; project back down
+        if output_mode == "real_imag":
+            self.out_proj = nn.Linear(2 * embedding_dim, embedding_dim)
 
         # Layer norm and dropout
         self.norm = nn.LayerNorm(embedding_dim)
@@ -137,16 +161,11 @@ class WaveLayer1D(nn.Module):
 
     def get_global_semantics(self, x):
         """Global semantics per dimension."""
-        squared = x * x
-        return torch.sqrt(torch.sum(squared, dim=1, keepdim=True) + self.eps)
+        return wave_ops.global_semantics(x, dim=1, eps=self.eps)
 
     def to_complex(self, x, g):
         """Convert to complex representation."""
-        ratio = x / (g + self.eps)
-        ratio = torch.clamp(ratio, -1 + self.eps, 1 - self.eps)
-        sqrt_term = torch.sqrt(torch.clamp(1 - ratio**2, min=self.eps))
-        phase = torch.atan2(sqrt_term, ratio)
-        return g * torch.exp(1j * phase)
+        return wave_ops.to_complex(x, g, self.eps)
 
     def wave_op(self, z1, z2):
         """Apply wave operation."""
@@ -155,12 +174,12 @@ class WaveLayer1D(nn.Module):
         c1 = self.to_complex(z1, g1)
         c2 = self.to_complex(z2, g2)
 
-        if self.mode == "interference":
-            result = c1 + c2
-        else:  # modulation
-            result = c1 * c2
+        result = wave_ops.wave_superpose(c1, c2, self.mode)
 
-        return torch.abs(result)
+        result = wave_ops.from_complex(result, self.output_mode)
+        if self.output_mode == "real_imag":
+            result = self.out_proj(result)
+        return result
 
     def forward(self, x):
         # Wave sublayer
@@ -211,6 +230,7 @@ class WaveAudio2D(nn.Module):
         mode: str = "modulation",
         dropout: float = 0.1,
         eps: float = 1e-8,
+        output_mode: str = "abs",
     ):
         super().__init__()
         self.mode = mode
@@ -235,7 +255,10 @@ class WaveAudio2D(nn.Module):
 
         # Wave processing layers
         self.layers = nn.ModuleList(
-            [WaveLayer1D(embedding_dim, mode, dropout, eps) for _ in range(num_layers)]
+            [
+                WaveLayer1D(embedding_dim, mode, dropout, eps, output_mode=output_mode)
+                for _ in range(num_layers)
+            ]
         )
 
         # Classification head

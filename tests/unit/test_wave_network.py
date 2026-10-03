@@ -227,6 +227,83 @@ class TestWaveAttention:
         assert not torch.isnan(output).any()
 
 
+class TestOutputModes:
+    """Regression tests for the v0.3.0 complex-to-real conversion fix.
+
+    With output_mode="abs" (the pre-v0.3.0 behavior) modulation collapses to
+    |c1*c2| = G1*G2, identical at every sequence position, so the classifier
+    only ever saw sequence-level norms.
+    """
+
+    def _per_position_wave_output(self, model, input_ids):
+        """Wave-layer output before pooling, mirroring WaveNetwork.forward."""
+        emb = model.embedding(input_ids) + model.pos_embed[:, : input_ids.size(1), :]
+        z1, z2 = model.linear1(emb), model.linear2(emb)
+        return model._from_complex(model._superpose(z1, z2, model.mode))
+
+    def _make_model(self, small_config, **kwargs):
+        from wave_network import WaveNetwork
+
+        return WaveNetwork(
+            small_config["vocab_size"],
+            small_config["embedding_dim"],
+            small_config["num_classes"],
+            **kwargs,
+        )
+
+    def test_legacy_abs_modulation_collapses_positions(self, small_config, sample_input):
+        """Documents the legacy degeneracy: every position gets the same vector."""
+        model = self._make_model(small_config, mode="modulation", output_mode="abs")
+        out = self._per_position_wave_output(model, sample_input)
+
+        assert torch.allclose(out, out[:, :1, :].expand_as(out), atol=1e-5)
+
+    @pytest.mark.parametrize("output_mode", ["real", "real_imag"])
+    def test_fixed_modulation_preserves_positions(self, small_config, sample_input, output_mode):
+        """Phase-preserving conversions must stay position-dependent."""
+        model = self._make_model(small_config, mode="modulation", output_mode=output_mode)
+        out = self._per_position_wave_output(model, sample_input)
+
+        assert not torch.allclose(out, out[:, :1, :].expand_as(out), atol=1e-5)
+
+    def test_legacy_abs_modulation_is_word_order_blind(self, small_config, sample_input):
+        """Without positional encoding, the legacy model ignores word order entirely."""
+        model = self._make_model(small_config, mode="modulation", output_mode="abs")
+        with torch.no_grad():
+            model.pos_embed.zero_()
+
+        shuffled = torch.roll(sample_input, shifts=1, dims=1)
+        assert torch.allclose(model(sample_input), model(shuffled), atol=1e-5)
+
+    def test_word_order_changes_logits(self, small_config, sample_input):
+        """With positional encoding, reordering tokens must change the logits."""
+        model = self._make_model(small_config, mode="modulation")
+
+        shuffled = torch.roll(sample_input, shifts=1, dims=1)
+        assert not torch.allclose(model(sample_input), model(shuffled), atol=1e-5)
+
+    def test_abs_mode_has_no_extra_parameters(self, small_config):
+        """output_mode="abs" must stay loadable against pre-v0.3.0 checkpoints."""
+        model = self._make_model(small_config, output_mode="abs")
+        assert not hasattr(model, "out_proj")
+
+    def test_deep_network_output_modes(self, small_config, sample_input):
+        """DeepWaveNetwork accepts the same output_mode options."""
+        from wave_network_deep import DeepWaveNetwork
+
+        for output_mode in ("abs", "real", "real_imag"):
+            model = DeepWaveNetwork(
+                small_config["vocab_size"],
+                small_config["embedding_dim"],
+                small_config["num_classes"],
+                num_layers=2,
+                output_mode=output_mode,
+            )
+            output = model(sample_input)
+            assert output.shape == (small_config["batch_size"], small_config["num_classes"])
+            assert not torch.isnan(output).any()
+
+
 class TestNumericalStability:
     """Test numerical stability of wave operations."""
 
