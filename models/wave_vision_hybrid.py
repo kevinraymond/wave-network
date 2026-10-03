@@ -177,10 +177,13 @@ class CNNWaveVision(nn.Module):
         num_classes: Number of output classes (default: 10)
         base_channels: CNN stem initial channels (default: 64)
         embedding_dim: Wave layer embedding dim (default: 256)
-        num_wave_layers: Number of WaveLayer2D modules (default: 2)
+        num_wave_layers: Number of WaveLayer2D modules (default: 2). With 0 the
+            model is the CNN stem alone, classified from mean-pooled patches -
+            the control for measuring what the wave layers contribute.
         mode: Wave operation mode (default: "modulation")
         dropout: Dropout rate in classifier (default: 0.2)
         wave_dropout: Dropout between wave layers (default: 0.1)
+        output_mode: Complex-to-real conversion (default: "abs"; see WaveLayer2D)
     """
 
     def __init__(
@@ -195,6 +198,7 @@ class CNNWaveVision(nn.Module):
         dropout: float = 0.2,
         wave_dropout: float = 0.1,
         patch_size: int = 4,  # Ignored, kept for compatibility with training script
+        output_mode: str = "abs",
     ):
         super().__init__()
 
@@ -215,7 +219,10 @@ class CNNWaveVision(nn.Module):
 
         # Wave layers for global processing
         self.wave_layers = nn.ModuleList(
-            [WaveLayer2D(embedding_dim, self.grid_size, mode=mode) for _ in range(num_wave_layers)]
+            [
+                WaveLayer2D(embedding_dim, self.grid_size, mode=mode, output_mode=output_mode)
+                for _ in range(num_wave_layers)
+            ]
         )
 
         # Dropout between wave layers
@@ -248,8 +255,9 @@ class CNNWaveVision(nn.Module):
             if i < len(self.wave_layers) - 1:
                 x = self.wave_dropout(x)
 
-        # Classify from CLS token
-        cls_output = x[:, 0]
+        # Classify from CLS token. Only the wave layers write to it, so without
+        # them pool the patch tokens directly.
+        cls_output = x[:, 0] if len(self.wave_layers) > 0 else x[:, 1:].mean(dim=1)
         cls_output = self.norm(cls_output)
         cls_output = self.dropout(cls_output)
         logits = self.classifier(cls_output)

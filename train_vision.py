@@ -107,6 +107,7 @@ MODEL_REGISTRY = {
     "wave_vision_base": lambda **kwargs: create_wave_vision("wave_vision_base", **kwargs),
     "wave_vision_2d": WaveVisionNetwork2D,
     "cnn_wave": CNNWaveVision,
+    "cnn_stem": CNNWaveVision,
 }
 
 # Model-specific default configs
@@ -133,6 +134,13 @@ MODEL_CONFIGS = {
         "mode": "modulation",
         "dropout": 0.2,
         "wave_dropout": 0.1,
+    },
+    # Control for cnn_wave: the same CNN stem with no wave layers, mean-pooled
+    "cnn_stem": {
+        "base_channels": 64,
+        "embedding_dim": 256,
+        "num_wave_layers": 0,
+        "dropout": 0.2,
     },
 }
 
@@ -341,8 +349,13 @@ class VisionTrainer:
 def create_model(
     model_name: str,
     task_name: str,
+    output_mode: str | None = None,
 ) -> nn.Module:
-    """Create a model instance."""
+    """Create a model instance.
+
+    ``output_mode`` overrides the models' complex-to-real conversion
+    (default: the model default, "abs").
+    """
     if model_name not in MODEL_REGISTRY:
         raise ValueError(f"Unknown model: {model_name}. Available: {list(MODEL_REGISTRY.keys())}")
 
@@ -355,6 +368,8 @@ def create_model(
     config["image_size"] = task.image_size
     config["patch_size"] = params["patch_size"]
     config["num_classes"] = task.num_classes
+    if output_mode is not None:
+        config["output_mode"] = output_mode
 
     return model_class(**config)
 
@@ -375,6 +390,7 @@ def run_task(
     label_smoothing: float = 0.0,
     experiment_name: str | None = None,
     seed: int | None = None,
+    output_mode: str | None = None,
 ) -> dict[str, Any]:
     """Run training and evaluation on a single vision task."""
     # Set seed for reproducibility
@@ -419,7 +435,12 @@ def run_task(
     model = create_model(
         model_name=model_name,
         task_name=task_name,
+        output_mode=output_mode,
     )
+
+    # Keep runs with different output modes from overwriting each other
+    if output_mode is not None:
+        model_name = f"{model_name}_{output_mode}"
 
     num_params = sum(p.numel() for p in model.parameters())
     logger.info(f"Model parameters: {num_params:,}")
@@ -607,6 +628,13 @@ def main():
         default=None,
         help="Random seed for reproducibility",
     )
+    parser.add_argument(
+        "--output-mode",
+        type=str,
+        default=None,
+        choices=["abs", "real", "real_imag"],
+        help="Complex-to-real conversion for wave models: abs (pre-v0.3.0), real, or real_imag (default: abs)",
+    )
 
     args = parser.parse_args()
 
@@ -630,6 +658,7 @@ def main():
         label_smoothing=args.label_smoothing,
         experiment_name=args.experiment_name,
         seed=args.seed,
+        output_mode=args.output_mode,
     )
 
 

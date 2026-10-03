@@ -135,6 +135,9 @@ class WaveVisionNetwork(nn.Module):
         mode: Wave operation mode - "modulation" or "interference"
         eps: Small constant for numerical stability
         dropout: Dropout rate for classification head
+        output_mode: Complex-to-real conversion - "abs", "real", or "real_imag".
+            Defaults to "abs" so pre-v0.3.0 checkpoints and published results
+            reproduce; see WaveNetwork for the trade-offs.
 
     Example:
         >>> model = WaveVisionNetwork(num_classes=10)
@@ -153,6 +156,7 @@ class WaveVisionNetwork(nn.Module):
         mode: str = "modulation",
         eps: float = 1e-8,
         dropout: float = 0.1,
+        output_mode: str = "abs",
     ):
         super().__init__()
 
@@ -161,6 +165,7 @@ class WaveVisionNetwork(nn.Module):
         self.embedding_dim = embedding_dim
         self.num_classes = num_classes
         self.num_layers = num_layers
+        self.output_mode = output_mode
 
         # Patch embedding
         self.patch_embed = WavePatchEmbedding(
@@ -172,7 +177,10 @@ class WaveVisionNetwork(nn.Module):
 
         # Stack of wave layers (reusing WaveLayer from wave_network_deep.py)
         self.wave_layers = nn.ModuleList(
-            [WaveLayer(embedding_dim, mode=mode, eps=eps) for _ in range(num_layers)]
+            [
+                WaveLayer(embedding_dim, mode=mode, eps=eps, output_mode=output_mode)
+                for _ in range(num_layers)
+            ]
         )
 
         # Classification head

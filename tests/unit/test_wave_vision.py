@@ -644,3 +644,111 @@ class TestCNNWaveVision:
         output = cnn_wave_model(images_zero)
         assert not torch.isnan(output).any()
         assert not torch.isinf(output).any()
+
+
+# ============================================================================
+# Complex-to-real output modes
+# ============================================================================
+
+
+class TestVisionOutputModes:
+    """abs after modulation discards the phase; real and real_imag keep it."""
+
+    GRID = 8
+    DIM = 32
+
+    def _layer(self, **kwargs):
+        from models.wave_vision_2d import WaveLayer2D
+
+        return WaveLayer2D(embedding_dim=self.DIM, grid_size=self.GRID, **kwargs)
+
+    def _patches(self):
+        return torch.randn(2, self.GRID * self.GRID, self.DIM)
+
+    def test_legacy_abs_modulation_is_energy_pooling(self):
+        """Documents the degeneracy: each scale is the sum of z^2 over its region."""
+        layer = self._layer(mode="modulation", output_mode="abs")
+        x = self._patches()
+        x_2d = x.view(2, self.GRID, self.GRID, self.DIM)
+
+        rows = layer.process_rows(x).view(2, self.GRID, self.GRID, self.DIM)
+        row_energy = (layer.proj_row(x_2d) ** 2).sum(dim=2, keepdim=True)
+        assert torch.allclose(rows, row_energy.expand_as(rows), rtol=1e-3)
+
+        cols = layer.process_cols(x).view(2, self.GRID, self.GRID, self.DIM)
+        col_energy = (layer.proj_col(x_2d) ** 2).sum(dim=1, keepdim=True)
+        assert torch.allclose(cols, col_energy.expand_as(cols), rtol=1e-3)
+
+    @pytest.mark.parametrize("output_mode", ["real", "real_imag"])
+    def test_phase_preserving_modes_stay_position_dependent(self, output_mode):
+        layer = self._layer(mode="modulation", output_mode=output_mode)
+        rows = layer.process_rows(self._patches()).view(2, self.GRID, self.GRID, -1)
+        assert not torch.allclose(rows, rows[:, :, :1].expand_as(rows), atol=1e-4)
+
+    @pytest.mark.parametrize("mode", ["modulation", "interference"])
+    @pytest.mark.parametrize("output_mode", ["abs", "real", "real_imag"])
+    def test_layer_shape_and_gradients(self, mode, output_mode):
+        layer = self._layer(mode=mode, output_mode=output_mode)
+        x = torch.randn(2, self.GRID * self.GRID + 1, self.DIM, requires_grad=True)
+
+        output = layer(x)
+        assert output.shape == x.shape
+
+        output.sum().backward()
+        assert torch.isfinite(x.grad).all()
+
+    def test_default_keeps_checkpoint_layout(self):
+        """The default must not add parameters, so existing checkpoints load."""
+        layer = self._layer()
+        assert layer.output_mode == "abs"
+        assert not hasattr(layer, "out_proj")
+        assert hasattr(self._layer(output_mode="real_imag"), "out_proj")
+
+    @pytest.mark.parametrize("output_mode", ["abs", "real", "real_imag"])
+    def test_models_accept_output_mode(self, vision_config, sample_images, output_mode):
+        from models.wave_vision import WaveVisionNetwork
+        from models.wave_vision_2d import WaveVisionNetwork2D
+        from models.wave_vision_hybrid import CNNWaveVision
+
+        models = [
+            WaveVisionNetwork(embedding_dim=64, num_layers=2, output_mode=output_mode),
+            WaveVisionNetwork2D(embedding_dim=64, num_layers=2, output_mode=output_mode),
+            CNNWaveVision(base_channels=32, embedding_dim=64, output_mode=output_mode),
+        ]
+        for model in models:
+            output = model(sample_images)
+            assert output.shape == (vision_config["batch_size"], vision_config["num_classes"])
+            assert torch.isfinite(output).all()
+
+    def test_1d_model_defaults_to_abs(self):
+        """WaveVisionNetwork must not inherit the text models' real_imag default."""
+        from models.wave_vision import WaveVisionNetwork
+
+        model = WaveVisionNetwork(embedding_dim=64, num_layers=2)
+        assert all(layer.output_mode == "abs" for layer in model.wave_layers)
+        assert not any("out_proj" in name for name, _ in model.named_parameters())
+
+
+class TestCNNStemControl:
+    """CNNWaveVision with no wave layers: the control for the hybrid results."""
+
+    def _model(self):
+        from models.wave_vision_hybrid import CNNWaveVision
+
+        return CNNWaveVision(base_channels=32, embedding_dim=64, num_wave_layers=0)
+
+    def test_forward_shape(self, sample_images, vision_config):
+        output = self._model()(sample_images)
+        assert output.shape == (vision_config["batch_size"], vision_config["num_classes"])
+
+    def test_logits_depend_on_image(self, sample_images):
+        """Without wave layers the CLS token never sees the patches, so the
+        head must pool the patches instead."""
+        model = self._model().eval()
+        assert not torch.allclose(model(sample_images), model(torch.zeros_like(sample_images)))
+
+    def test_backward_reaches_stem(self, sample_images):
+        model = self._model()
+        model(sample_images).sum().backward()
+        assert model.stem.conv1.weight.grad is not None
+        assert model.stem.conv1.weight.grad.abs().sum() > 0

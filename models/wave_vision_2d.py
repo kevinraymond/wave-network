@@ -33,6 +33,12 @@ class WaveLayer2D(nn.Module):
         grid_size: Size of the patch grid (e.g., 8 for 8x8 grid)
         mode: Wave operation mode ("modulation" or "interference")
         eps: Numerical stability constant
+        output_mode: Complex-to-real conversion - "abs", "real", or "real_imag".
+            Defaults to "abs" so existing checkpoints and published results
+            reproduce, but note that abs after modulation discards the phase:
+            each scale reduces to energy pooling (sum of z^2 over the row,
+            column, or 3x3 neighborhood). "real" and "real_imag" keep the
+            output position-dependent (see models/wave_ops.py).
     """
 
     def __init__(
@@ -41,12 +47,14 @@ class WaveLayer2D(nn.Module):
         grid_size: int,
         mode: str = "modulation",
         eps: float = 1e-8,
+        output_mode: str = "abs",
     ):
         super().__init__()
         self.embedding_dim = embedding_dim
         self.grid_size = grid_size
         self.mode = mode
         self.eps = eps
+        self.output_mode = output_mode
 
         # Projections for different scales
         self.proj_row = nn.Linear(embedding_dim, embedding_dim)
@@ -64,6 +72,10 @@ class WaveLayer2D(nn.Module):
         # Learnable fusion weights for multi-scale combination
         self.fusion_weights = nn.Parameter(torch.ones(3) / 3)
 
+        # real_imag doubles the feature dimension; project the fused scales back down
+        if output_mode == "real_imag":
+            self.out_proj = nn.Linear(2 * embedding_dim, embedding_dim)
+
         # Layer normalization
         self.layer_norm = nn.LayerNorm(embedding_dim)
 
@@ -71,13 +83,10 @@ class WaveLayer2D(nn.Module):
         """Calculate global semantics along a specific dimension."""
         return wave_ops.global_semantics(x, dim=dim, eps=self.eps)
 
-    def to_complex_repr(self, x, global_semantics):
-        """Convert to complex polar representation."""
-        return wave_ops.to_complex(x, global_semantics, self.eps)
-
-    def wave_op(self, c1, c2):
-        """Apply wave operation (modulation or interference)."""
-        return wave_ops.wave_superpose(c1, c2, self.mode)
+    def wave_op(self, p1, p2):
+        """Apply the wave operation to two (real, imag) pairs and convert back to real."""
+        real, imag = wave_ops.superpose_parts(p1, p2, self.mode)
+        return wave_ops.from_parts(real, imag, self.output_mode)
 
     def process_rows(self, x):
         """
@@ -90,7 +99,8 @@ class WaveLayer2D(nn.Module):
             x: (batch, H*W, dim)
 
         Returns:
-            (batch, H*W, dim) with row-wise wave processing
+            (batch, H*W, out_dim) with row-wise wave processing, where
+            out_dim is 2*dim for output_mode="real_imag" and dim otherwise
         """
         batch_size = x.shape[0]
         h, w = self.grid_size, self.grid_size
@@ -104,15 +114,10 @@ class WaveLayer2D(nn.Module):
         # Compute row-wise global semantics: (batch, H, 1, dim)
         g = self.get_global_semantics(z, dim=2)
 
-        # Convert to complex and apply wave operation
-        c = self.to_complex_repr(z, g)
-
-        # Within each row, modulate adjacent patches
-        c_shifted = torch.roll(c, shifts=1, dims=2)
-        output = self.wave_op(c, c_shifted)
-
-        # Convert back to real
-        output = torch.abs(output)
+        # Within each row, combine each patch with its neighbor
+        real, imag = wave_ops.to_parts(z, g, self.eps)
+        shifted = (torch.roll(real, shifts=1, dims=2), torch.roll(imag, shifts=1, dims=2))
+        output = self.wave_op((real, imag), shifted)
 
         # Reshape back to (batch, H*W, dim)
         return output.view(batch_size, h * w, -1)
@@ -128,7 +133,7 @@ class WaveLayer2D(nn.Module):
             x: (batch, H*W, dim)
 
         Returns:
-            (batch, H*W, dim) with column-wise wave processing
+            (batch, H*W, out_dim) with column-wise wave processing
         """
         batch_size = x.shape[0]
         h, w = self.grid_size, self.grid_size
@@ -142,15 +147,10 @@ class WaveLayer2D(nn.Module):
         # Compute column-wise global semantics: (batch, 1, W, dim)
         g = self.get_global_semantics(z, dim=1)
 
-        # Convert to complex and apply wave operation
-        c = self.to_complex_repr(z, g)
-
-        # Within each column, modulate adjacent patches
-        c_shifted = torch.roll(c, shifts=1, dims=1)
-        output = self.wave_op(c, c_shifted)
-
-        # Convert back to real
-        output = torch.abs(output)
+        # Within each column, combine each patch with its neighbor
+        real, imag = wave_ops.to_parts(z, g, self.eps)
+        shifted = (torch.roll(real, shifts=1, dims=1), torch.roll(imag, shifts=1, dims=1))
+        output = self.wave_op((real, imag), shifted)
 
         # Reshape back to (batch, H*W, dim)
         return output.view(batch_size, h * w, -1)
@@ -165,7 +165,7 @@ class WaveLayer2D(nn.Module):
             x: (batch, H*W, dim)
 
         Returns:
-            (batch, H*W, dim) with local wave processing
+            (batch, H*W, out_dim) with local wave processing
         """
         batch_size = x.shape[0]
         h, w = self.grid_size, self.grid_size
@@ -184,20 +184,19 @@ class WaveLayer2D(nn.Module):
         local_sum = F.avg_pool2d(local_squared, kernel_size=3, stride=1, padding=0)
         local_g = torch.sqrt(local_sum * 9 + self.eps)  # *9 to undo avg
 
-        # Convert center to complex
-        c_center = wave_ops.to_complex(z_2d, local_g, self.eps)
+        # Channels-last so real_imag concatenates along the feature dimension
+        z_2d = z_2d.permute(0, 2, 3, 1)  # (batch, H, W, dim)
+        local_g = local_g.permute(0, 2, 3, 1)
 
-        # Get shifted version (diagonal neighbor)
-        z_shifted = torch.roll(torch.roll(z_2d, 1, dims=2), 1, dims=3)
-        c_neighbor = wave_ops.to_complex(z_shifted, local_g, self.eps)
+        # Center patch and its diagonal neighbor, both relative to the local magnitude
+        z_shifted = torch.roll(z_2d, shifts=(1, 1), dims=(1, 2))
+        p_center = wave_ops.to_parts(z_2d, local_g, self.eps)
+        p_neighbor = wave_ops.to_parts(z_shifted, local_g, self.eps)
 
-        # Wave operation
-        output = self.wave_op(c_center, c_neighbor)
-        output = torch.abs(output)
+        output = self.wave_op(p_center, p_neighbor)
 
-        # Reshape back to (batch, H*W, dim)
-        output = output.permute(0, 2, 3, 1).reshape(batch_size, h * w, dim)
-        return output
+        # Reshape back to (batch, H*W, out_dim)
+        return output.reshape(batch_size, h * w, -1)
 
     def forward(self, x):
         """
@@ -221,6 +220,8 @@ class WaveLayer2D(nn.Module):
         # Learnable fusion of scales
         weights = F.softmax(self.fusion_weights, dim=0)
         fused = weights[0] * row_out + weights[1] * col_out + weights[2] * local_out
+        if self.output_mode == "real_imag":
+            fused = self.out_proj(fused)
 
         # Residual connection for patches
         patch_out = self.layer_norm(fused + patch_tokens)
@@ -251,6 +252,7 @@ class WaveVisionNetwork2D(nn.Module):
         num_layers: Number of wave layers
         mode: Wave operation mode
         dropout: Dropout rate
+        output_mode: Complex-to-real conversion (see WaveLayer2D)
     """
 
     def __init__(
@@ -264,6 +266,7 @@ class WaveVisionNetwork2D(nn.Module):
         mode: str = "modulation",
         eps: float = 1e-8,
         dropout: float = 0.1,
+        output_mode: str = "abs",
     ):
         super().__init__()
 
@@ -295,7 +298,9 @@ class WaveVisionNetwork2D(nn.Module):
         # 2D-aware wave layers
         self.wave_layers = nn.ModuleList(
             [
-                WaveLayer2D(embedding_dim, self.grid_size, mode=mode, eps=eps)
+                WaveLayer2D(
+                    embedding_dim, self.grid_size, mode=mode, eps=eps, output_mode=output_mode
+                )
                 for _ in range(num_layers)
             ]
         )
