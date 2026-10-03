@@ -48,19 +48,26 @@ MODEL_CONFIGS = {
 
 BASE_CONFIG = {
     "project_name": "wave-network-vs-bert",
-    # "weight_decay": 1e-3, # orig
-    "weight_decay": 1e-5,
-    "num_epochs": 4,  # orig
-    "warmup_steps": 100,  # orig
-    # "max_grad_norm": 1.0, # orig
-    "max_grad_norm": 5.0,
-    # "max_length": 64, # orig
-    "max_length": 384,
+    "num_epochs": 4,
+    "warmup_steps": 100,
 }
 
-DATA_PATHS = {
-    "train": "hf/imdb/plain_text/train-00000-of-00001.parquet",
-    "test": "hf/imdb/plain_text/test-00000-of-00001.parquet",
+# Per-dataset paths and hyperparameters
+DATASET_CONFIGS = {
+    "imdb": {
+        "train": "hf/imdb/plain_text/train-00000-of-00001.parquet",
+        "test": "hf/imdb/plain_text/test-00000-of-00001.parquet",
+        "weight_decay": 1e-5,
+        "max_grad_norm": 5.0,
+        "max_length": 384,
+    },
+    "ag_news": {
+        "train": "hf/ag_news/data/train-00000-of-00001.parquet",
+        "test": "hf/ag_news/data/test-00000-of-00001.parquet",
+        "weight_decay": 0.01,
+        "max_grad_norm": 1.0,
+        "max_length": 128,
+    },
 }
 
 
@@ -89,20 +96,22 @@ def get_model(model_type, vocab_size, num_classes, output_mode=None):
         raise ValueError(f"Unknown model type: {model_type}")
 
 
-def get_config(model_type):
-    """Get configuration for specified model type"""
+def get_config(model_type, dataset="imdb"):
+    """Get configuration for specified model type and dataset"""
     config = BASE_CONFIG.copy()
+    config.update(DATASET_CONFIGS[dataset])
     config.update(MODEL_CONFIGS[model_type])
+    config["dataset"] = dataset
     return config
 
 
-def prepare_data(model_type):
-    """Prepare data for specified model type"""
+def prepare_data(model_type, dataset="imdb"):
+    """Prepare data for specified model type and dataset"""
     return prepare_text_classification_data(
-        train_path=DATA_PATHS["train"],
-        test_path=DATA_PATHS["test"],
+        train_path=DATASET_CONFIGS[dataset]["train"],
+        test_path=DATASET_CONFIGS[dataset]["test"],
         batch_size=MODEL_CONFIGS[model_type]["batch_size"],
-        max_length=BASE_CONFIG["max_length"],
+        max_length=DATASET_CONFIGS[dataset]["max_length"],
     )
 
 
@@ -283,7 +292,7 @@ class Trainer:
             project=self.config["project_name"],
             name=self.config["name"],
             config=self.config,
-            group="imdb_comparison",
+            group=f"{self.config['dataset']}_comparison",
             reinit=True,
         )
 
@@ -333,11 +342,11 @@ class Trainer:
         return test_metrics
 
 
-def train_model(model_type, output_mode=None):
+def train_model(model_type, output_mode=None, dataset="imdb"):
     """Train and evaluate a specific model type"""
     # Prepare data and config
-    data = prepare_data(model_type)
-    config = get_config(model_type)
+    data = prepare_data(model_type, dataset)
+    config = get_config(model_type, dataset)
     if output_mode is not None and model_type == "wave_network":
         config["name"] = f"{config['name']}_{output_mode}"
         config["output_mode"] = output_mode
@@ -374,6 +383,9 @@ def main():
     parser = argparse.ArgumentParser(description="Train Wave Network vs BERT baselines")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument(
+        "--dataset", default="imdb", choices=list(DATASET_CONFIGS), help="Dataset to train on"
+    )
+    parser.add_argument(
         "--models",
         nargs="+",
         default=["wave_network"],
@@ -397,7 +409,7 @@ def main():
 
     try:
         for model_type in args.models:
-            results[model_type] = train_model(model_type, args.output_mode)
+            results[model_type] = train_model(model_type, args.output_mode, args.dataset)
             wandb.finish()
             if torch.cuda.is_available():
                 torch.cuda.reset_peak_memory_stats()
