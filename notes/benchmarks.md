@@ -6,6 +6,49 @@ All tests run locally on a single Nvidia 4090.
 
 ---
 
+## Final Re-run with Controls (October 2026)
+
+The last experiment before the project was archived: the three complex-to-real conversions
+against a bag-of-embeddings control (`WaveNetwork` with the wave operation removed). Three seeds
+(42, 123, 456), modulation mode, embedding dimension 768.
+
+### AG News (test accuracy at the best-validation epoch, 4 epochs)
+
+| Model | Params | Seed 42 | Seed 123 | Seed 456 | Mean |
+| ----- | ------ | ------- | -------- | -------- | ---- |
+| Bag of embeddings (control) | 23.4M | 91.25% | 91.32% | 91.29% | 91.29% |
+| Wave Network, `abs` (pre-v0.3.0) | 25.0M | 91.32% | 91.36% | 91.43% | 91.37% |
+| Wave Network, `real` (paper) | 25.0M | 91.45% | 91.46% | 91.26% | 91.39% |
+| Wave Network, `real_imag` (default) | 26.2M | 91.49% | 91.67% | 91.89% | 91.68% |
+
+Hyperparameters: lr 1e-3, batch 64, max length 128, weight decay 0.01, gradient clip 1.0.
+
+### GLUE SST-2 and RTE (validation accuracy, best epoch)
+
+| Model | SST-2 mean | SST-2 seeds | RTE mean | RTE seeds |
+| ----- | ---------- | ----------- | -------- | --------- |
+| Bag of embeddings (control) | 80.24% | 80.05 / 79.59 / 81.08 | 51.38% | 51.99 / 51.26 / 50.90 |
+| Wave Network, `abs` | 80.73% | 80.39 / 79.82 / 82.00 | 51.99% | 52.35 / 51.99 / 51.62 |
+| Wave Network, `real` | 80.58% | 80.73 / 79.70 / 81.31 | 53.91% | 53.07 / 53.79 / 54.87 |
+| Wave Network, `real_imag` | 80.58% | 79.93 / 80.39 / 81.42 | 53.31% | 53.43 / 52.71 / 53.79 |
+
+### Reading these results
+
+- The wave operation adds 0.1-0.4 points over the control on AG News and nothing measurable on
+  SST-2. Most of the accuracy comes from the embedding table.
+- `real_imag` is the only mode that beats the control on every AG News seed. It also has one
+  extra projection layer, and one run's sampling error on the 7,600-example test set is about
+  0.3 points.
+- RTE is near the 52.7% majority-class baseline for every model; with 277 validation examples,
+  one example is 0.36 points.
+- The GLUE figures are the best epoch selected on the validation set itself, so they are
+  slightly optimistic. The models overfit after the first epoch on SST-2.
+
+Everything below this section predates v0.3.0 (single runs, `output_mode="abs"`) and is kept
+for the record.
+
+---
+
 ## Classification Benchmarks
 
 ### AG News
@@ -109,6 +152,10 @@ Wave Network vs [FNet](https://arxiv.org/abs/2105.03824) (Fourier-based model) o
 | **STS-B** | Pearson | **0.126** | 0.103 | Wave | 85% |
 
 **Summary:** Wave Network wins 5/8 tasks with **less than half the parameters** (24.6M vs 52.2M).
+
+> **Caveat (October 2026):** both models were trained from scratch, and FNet is at chance on
+> several tasks (its RTE score is exactly the majority class, its CoLA score is 0), so this is a
+> weak comparison. The bag-of-embeddings control above matches Wave Network on SST-2 and RTE.
 
 ### Key Findings
 

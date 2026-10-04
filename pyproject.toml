@@ -1,6 +1,6 @@
 [project]
 name = "wave-network"
-version = "0.2.0"
+version = "0.3.0"
 description = "Wave Network: An Ultra-Small Language Model using frequency-domain operations"
 readme = "README.md"
 license = {text = "MIT"}

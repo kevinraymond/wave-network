@@ -6,27 +6,76 @@
 
 Implementation of [Wave Network: An Ultra-Small Language Model](https://arxiv.org/pdf/2411.02674) - a lightweight alternative to BERT using wave-based signal processing instead of attention.
 
+> **Status: archived (October 2026).** This repository is a completed replication study and is
+> no longer developed. The main finding is negative: on the text tasks tested, the wave
+> operation adds almost nothing over a plain bag-of-embeddings model with the same embedding
+> table, and the vision wave layers reduce to energy pooling. See [Findings](#findings) below.
+> The code, tests and the browser keyword-spotting demo remain available as-is.
+
+## Findings
+
+1. **Text: the embeddings do the work.** With the wave operation removed, accuracy drops by
+   0.1-0.4 points on AG News and not at all on SST-2 (3 seeds each). The paper's AG News result
+   is reproduced (91.4-91.7% here vs 91.66% reported), but a mean-pooled embedding baseline
+   reaches 91.3%.
+2. **`abs` after modulation is degenerate.** `|c1*c2| = G1*G2` is identical for every token, so
+   the original implementation never passed per-token features to the classifier. Fixing this
+   (v0.3.0, `output_mode="real_imag"`) gained about 0.3 points on AG News and nothing on SST-2.
+3. **Vision: the wave layers are energy pooling.** The published CNN-Wave numbers use the same
+   degenerate mode; each wave scale is a sum of squared features over a row, column or 3x3
+   neighborhood. The stem-only control was implemented but never run.
+4. **Audio was not ablated.** The STFT model uses a different operation and has no control run.
+5. **Evaluation caveats.** The vision numbers were selected on the test set (best epoch), the
+   GLUE numbers are best-epoch on the validation set, and the FNet baseline was trained from
+   scratch.
+
 ## Results
 
 ### Text Classification
 
-Wave Network achieves near-BERT accuracy with **4.5x fewer parameters**:
+Wave Network gets within about 3 points of BERT with roughly 4x fewer parameters:
 
 | Dataset | Wave Network | BERT | Parameters |
 |---------|-------------|------|------------|
-| AG News | 92.0% | 94.6% | 24.6M vs 109M |
-| DBpedia | 98.2% | 99.3% | 24.6M vs 109M |
-| IMDB | 87.2% | 88.7% | 24.6M vs 109M |
+| AG News | 91.7% | 94.6% | 26.2M vs 109M |
+| DBpedia | 98.2%* | 99.3% | 24.6M vs 109M |
+| IMDB | 87.2%* | 88.7% | 24.6M vs 109M |
 
-*Test accuracy on standard splits.*
+*Test accuracy on standard splits. AG News is the v0.3.0 model (mean of 3 seeds). Rows marked
+\* are single pre-v0.3.0 runs (`output_mode="abs"`) and have not been re-run.*
 
-> **Note on these numbers (v0.3.0):** the results above were produced with the
-> pre-v0.3.0 `output_mode="abs"` conversion, which under modulation discards all
-> token-level information (see Changelog). They are pending re-run with the fixed
-> conversion. The paper's "2.4M parameters" excludes the ~23.4M token embedding
-> table; the counts reported here include it.
+**Most of that accuracy comes from the embeddings, not the wave operation.** A bag-of-embeddings
+control (`WaveNetwork` with the wave operation removed: embedding, layer norm, mean pooling,
+linear classifier) lands within half a point on every task re-run so far:
 
-On GLUE benchmark, Wave Network wins 5/8 tasks vs FNet with half the parameters (24.6M vs 52.2M).
+| Model | Params | AG News (test) | SST-2 (val) | RTE (val) |
+|-------|--------|----------------|-------------|-----------|
+| Bag of embeddings (control) | 23.4M | 91.29% | 80.24% | 51.38% |
+| Wave Network, `abs` (pre-v0.3.0) | 25.0M | 91.37% | 80.73% | 51.99% |
+| Wave Network, `real` (paper) | 25.0M | 91.39% | 80.58% | 53.91% |
+| Wave Network, `real_imag` (default) | 26.2M | **91.68%** | 80.58% | 53.31% |
+
+*Mean of 3 seeds (42, 123, 456), modulation mode. AG News: 4 epochs, test accuracy at the
+best-validation epoch. SST-2 and RTE: best validation epoch, so slightly optimistic.*
+
+- On AG News `real_imag` beats the control on all three seeds, by 0.4 points on average.
+- On SST-2 the four models are indistinguishable (seed-to-seed spread is 0.6-0.9 points).
+- On RTE everything is near the 52.7% majority-class baseline (277 validation examples).
+- The paper's "2.4M parameters" excludes the ~23.4M token embedding table; the counts here
+  include it.
+
+On the full GLUE benchmark (pre-v0.3.0 runs), Wave Network scored higher than a from-scratch
+FNet on 5/8 tasks with half the parameters (24.6M vs 52.2M). Neither model was pre-trained and
+FNet was at chance on several tasks, so this is a weak comparison; see
+[notes/benchmarks.md](notes/benchmarks.md).
+
+To reproduce the comparison:
+
+```bash
+uv run python train.py --dataset ag_news --models wave_network --output-mode real_imag
+uv run python train.py --dataset ag_news --models bag_of_embeddings
+uv run --extra glue python train_glue.py --task sst2 --model wave_network bag_of_embeddings
+```
 
 ### Image Classification
 
@@ -46,7 +95,9 @@ The hybrid combines CNN local feature extraction with Wave's efficient global pr
 > wave scale reduces to energy pooling (the sum of squared features over a row, column,
 > or 3x3 neighborhood) and the phase is unused. Comparisons against the stem-only control
 > (`--model cnn_stem`) and the phase-preserving modes (`--output-mode real` / `real_imag`)
-> are pending.
+> were implemented but not run before the project was archived. These numbers are also the
+> best epoch as measured on the test set, and plain ResNets of similar size reach comparable
+> CIFAR-10 accuracy, so the comparison with ViT overstates the result.
 
 ### Audio Classification
 
@@ -98,10 +149,10 @@ See [notes/benchmarks.md](notes/benchmarks.md) and [notes/vision_results.md](not
 uv sync
 
 # Train on AG News
-uv run python train.py
+uv run python train.py --dataset ag_news
 
 # Run GLUE benchmarks
-uv run python train_glue.py --task sst2 --model wave_network
+uv run --extra glue python train_glue.py --task sst2 --model wave_network
 
 # Train CNN-Wave on CIFAR-10
 uv run python train_vision.py --task cifar10 --model cnn_wave --randaugment
@@ -112,9 +163,12 @@ uv run python train_vision.py --task cifar100 --model cnn_wave --randaugment
 
 ## Documentation
 
-- [Benchmark Results](notes/benchmarks.md) - Detailed performance data
+- [Benchmark Results](notes/benchmarks.md) - Detailed performance data, including the final re-run
 - [Vision Results](notes/vision_results.md) - Image classification benchmarks
-- [Technical Analysis](notes/ANALYSIS.md) - Implementation review
+
+Historical notes, written before the findings above and superseded by them:
+
+- [Technical Analysis](notes/ANALYSIS.md) - Implementation review (November 2025)
 - [Improvements](notes/IMPROVEMENTS.md) - Roadmap and fixes
 - [Review Summary](notes/REVIEW_SUMMARY.md) - Executive summary
 
